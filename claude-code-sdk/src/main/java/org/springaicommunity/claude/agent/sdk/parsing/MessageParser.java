@@ -70,7 +70,12 @@ public class MessageParser {
 			case "assistant" -> parseAssistantMessage(node);
 			case "system" -> parseSystemMessage(node);
 			case "result" -> parseResultMessage(node);
-			default -> throw new MessageParseException("Unknown message type: " + type);
+			default -> {
+				logger.error("Unrecognized message type '{}' — skipping. "
+						+ "This may indicate the Claude CLI has added a new message type. "
+						+ "Raw JSON: {}", type, node);
+				yield null;
+			}
 		};
 	}
 
@@ -164,10 +169,16 @@ public class MessageParser {
 				case "text" -> parseTextBlock(blockNode);
 				case "tool_use" -> parseToolUseBlock(blockNode);
 				case "tool_result" -> parseToolResultBlock(blockNode);
-				default -> throw new MessageParseException("Unknown content block type: " + type);
+				case "thinking" -> parseThinkingBlock(blockNode);
+				default -> {
+					logger.error("Unrecognized content block type '{}' — skipping", type);
+					yield null;
+				}
 			};
 
-			blocks.add(block);
+			if (block != null) {
+				blocks.add(block);
+			}
 		}
 
 		return blocks;
@@ -179,6 +190,12 @@ public class MessageParser {
 			throw new MessageParseException("Missing 'text' field in text block");
 		}
 		return TextBlock.of(text);
+	}
+
+	private ThinkingBlock parseThinkingBlock(JsonNode node) {
+		String thinking = getStringField(node, "thinking");
+		String signature = getStringField(node, "signature");
+		return ThinkingBlock.of(thinking != null ? thinking : "", signature);
 	}
 
 	private ToolUseBlock parseToolUseBlock(JsonNode node) throws MessageParseException {

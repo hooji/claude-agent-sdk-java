@@ -205,10 +205,14 @@ public class ControlMessageParser {
 	}
 
 	/**
-	 * Parses a regular message from a JsonNode.
+	 * Parses a regular message from a JsonNode. Returns null if the message type is
+	 * unrecognized (graceful forward-compatibility with newer CLI versions).
 	 */
 	private ParsedMessage parseRegularMessage(JsonNode node) throws MessageParseException {
 		Message message = messageParser.parseMessageFromNode(node);
+		if (message == null) {
+			return null;
+		}
 		return ParsedMessage.RegularMessage.of(message);
 	}
 

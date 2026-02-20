@@ -731,6 +731,11 @@ public class StreamingTransport implements AutoCloseable {
 				try {
 					ParsedMessage parsed = parser.parse(line);
 
+					// Skip unrecognized message types (forward-compatibility)
+					if (parsed == null) {
+						continue;
+					}
+
 					// Emit to sink for reactive consumers
 					Sinks.EmitResult emitResult = inboundSink.tryEmitNext(parsed);
 					if (!emitResult.isSuccess()) {
@@ -771,10 +776,9 @@ public class StreamingTransport implements AutoCloseable {
 				}
 				catch (Exception e) {
 					if (!isClosing) {
-						logger.warn("Failed to process message: {}", line.substring(0, Math.min(100, line.length())),
-								e);
+						logger.error("Failed to process message (continuing): {}",
+								line.substring(0, Math.min(200, line.length())), e);
 					}
-					break;
 				}
 			}
 
