@@ -46,6 +46,11 @@ examples/research-agent/research_notes/
 examples/research-agent/*.md
 !examples/research-agent/README.md
 
+### Vaadin Generated ###
+**/src/main/frontend/generated/
+**/node_modules/
+vite.generated.ts
+
 ### Root-level output directories (stray from test runs) ###
 /files/
 /logs/
