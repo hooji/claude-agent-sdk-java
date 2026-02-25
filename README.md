@@ -13,6 +13,20 @@ Java SDK for interacting with [Claude Code CLI](https://docs.anthropic.com/en/do
 | **MCP Integration** | Support for Model Context Protocol servers |
 | **Permission Callbacks** | Programmatic control over tool execution |
 
+## Documentation
+
+- **[Tutorial](https://springaicommunity.mintlify.app/claude-agent-sdk/tutorial/index)** — Step-by-step guide covering all SDK features
+- **[Tutorial Source Code](https://github.com/spring-ai-community/claude-agent-sdk-java-tutorial)** — Runnable examples for each tutorial module
+
+The tutorial covers:
+
+- All three API styles (Query, ClaudeSyncClient, ClaudeAsyncClient)
+- Multi-turn conversations and session management
+- Hooks, permission callbacks, and MCP integration
+- Real-world patterns and best practices
+
+Each module is a standalone runnable example with integration tests.
+
 ## Requirements
 
 - Java 17+
