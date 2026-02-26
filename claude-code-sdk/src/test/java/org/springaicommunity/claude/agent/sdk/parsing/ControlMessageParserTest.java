@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.claude.agent.sdk.exceptions.MessageParseException;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitEvent;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.SystemMessage;
 import org.springaicommunity.claude.agent.sdk.types.UserMessage;
@@ -496,6 +497,74 @@ class ControlMessageParserTest {
 
 			assertThatThrownBy(() -> parser.parse(json)).isInstanceOf(MessageParseException.class)
 				.hasMessageContaining("request_id");
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Rate Limit Event Parsing")
+	class RateLimitEventParsing {
+
+		@Test
+		@DisplayName("Should parse rate_limit_event with all fields")
+		void shouldParseRateLimitEvent() throws Exception {
+			String json = """
+					{
+					  "type": "rate_limit_event",
+					  "rate_limit_info": {
+					    "status": "allowed",
+					    "resetsAt": 1772157600,
+					    "rateLimitType": "five_hour",
+					    "overageStatus": "rejected",
+					    "overageDisabledReason": "org_level_disabled",
+					    "isUsingOverage": false
+					  },
+					  "uuid": "eb7544df-6f3e-4438-a178-f4de557b156d",
+					  "session_id": "5227c790-48a2-425c-9e7a-da74f3a2761b"
+					}
+					""";
+
+			ParsedMessage result = parser.parse(json);
+
+			assertThat(result).isNotNull();
+			assertThat(result.isRateLimitEvent()).isTrue();
+			assertThat(result.isRegularMessage()).isFalse();
+			assertThat(result.isControlRequest()).isFalse();
+
+			RateLimitEvent event = result.asRateLimitEvent();
+			assertThat(event).isNotNull();
+			assertThat(event.type()).isEqualTo("rate_limit_event");
+			assertThat(event.uuid()).isEqualTo("eb7544df-6f3e-4438-a178-f4de557b156d");
+			assertThat(event.sessionId()).isEqualTo("5227c790-48a2-425c-9e7a-da74f3a2761b");
+			assertThat(event.isAllowed()).isTrue();
+
+			assertThat(event.rateLimitInfo()).isNotNull();
+			assertThat(event.rateLimitInfo().status()).isEqualTo("allowed");
+			assertThat(event.rateLimitInfo().resetsAt()).isEqualTo(1772157600L);
+			assertThat(event.rateLimitInfo().rateLimitType()).isEqualTo("five_hour");
+			assertThat(event.rateLimitInfo().overageStatus()).isEqualTo("rejected");
+			assertThat(event.rateLimitInfo().overageDisabledReason()).isEqualTo("org_level_disabled");
+			assertThat(event.rateLimitInfo().isUsingOverage()).isFalse();
+			assertThat(event.rateLimitInfo().isAllowed()).isTrue();
+		}
+
+		@Test
+		@DisplayName("Should not produce ERROR log for rate_limit_event")
+		void shouldNotTreatAsUnrecognizedType() throws Exception {
+			String json = """
+					{
+					  "type": "rate_limit_event",
+					  "rate_limit_info": {"status": "allowed", "resetsAt": 0, "rateLimitType": "five_hour", "overageStatus": "rejected", "overageDisabledReason": "org_level_disabled", "isUsingOverage": false},
+					  "uuid": "test-uuid",
+					  "session_id": "test-session"
+					}
+					""";
+
+			// Should parse without error — previously fell through to default case
+			// and logged ERROR "Unrecognized message type 'rate_limit_event'"
+			ParsedMessage result = parser.parse(json);
+			assertThat(result).isNotNull();
+			assertThat(result).isInstanceOf(ParsedMessage.RateLimitEventMessage.class);
 		}
 
 	}

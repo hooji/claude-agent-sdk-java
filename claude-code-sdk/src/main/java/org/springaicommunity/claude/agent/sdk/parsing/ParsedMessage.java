@@ -17,6 +17,7 @@
 package org.springaicommunity.claude.agent.sdk.parsing;
 
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitEvent;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlResponse;
 
@@ -37,7 +38,7 @@ import org.springaicommunity.claude.agent.sdk.types.control.ControlResponse;
  * }</pre>
  */
 public sealed interface ParsedMessage permits ParsedMessage.RegularMessage, ParsedMessage.Control,
-		ParsedMessage.ControlResponseMessage, ParsedMessage.EndOfStream {
+		ParsedMessage.ControlResponseMessage, ParsedMessage.RateLimitEventMessage, ParsedMessage.EndOfStream {
 
 	/**
 	 * Check if this is a regular message (user, assistant, system, result).
@@ -79,6 +80,20 @@ public sealed interface ParsedMessage permits ParsedMessage.RegularMessage, Pars
 	 */
 	default ControlResponse asControlResponse() {
 		return this instanceof ControlResponseMessage cr ? cr.response() : null;
+	}
+
+	/**
+	 * Check if this is a rate limit event.
+	 */
+	default boolean isRateLimitEvent() {
+		return this instanceof RateLimitEventMessage;
+	}
+
+	/**
+	 * Get as rate limit event, or null if this is not a rate limit event.
+	 */
+	default RateLimitEvent asRateLimitEvent() {
+		return this instanceof RateLimitEventMessage rle ? rle.event() : null;
 	}
 
 	/**
@@ -134,6 +149,26 @@ public sealed interface ParsedMessage permits ParsedMessage.RegularMessage, Pars
 		 */
 		public static ControlResponseMessage of(ControlResponse response) {
 			return new ControlResponseMessage(response);
+		}
+	}
+
+	/**
+	 * Wrapper for rate limit events (type=rate_limit_event). These are server-sent events
+	 * carrying quota status and reset timing. Currently informational — the transport
+	 * skips these, but callers can check them for proactive back-off.
+	 */
+	record RateLimitEventMessage(RateLimitEvent event) implements ParsedMessage {
+		public RateLimitEventMessage {
+			if (event == null) {
+				throw new IllegalArgumentException("event must not be null");
+			}
+		}
+
+		/**
+		 * Factory method for creating a RateLimitEventMessage.
+		 */
+		public static RateLimitEventMessage of(RateLimitEvent event) {
+			return new RateLimitEventMessage(event);
 		}
 	}
 

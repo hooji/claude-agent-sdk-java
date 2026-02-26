@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springaicommunity.claude.agent.sdk.exceptions.MessageParseException;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitEvent;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlResponse;
 
@@ -55,6 +56,8 @@ public class ControlMessageParser {
 	private static final String TYPE_CONTROL_REQUEST = "control_request";
 
 	private static final String TYPE_CONTROL_RESPONSE = "control_response";
+
+	private static final String TYPE_RATE_LIMIT_EVENT = "rate_limit_event";
 
 	/** Default maximum buffer size for JSON parsing (1MB). */
 	public static final int DEFAULT_MAX_BUFFER_SIZE = 1024 * 1024;
@@ -158,6 +161,9 @@ public class ControlMessageParser {
 		else if (TYPE_CONTROL_RESPONSE.equals(type)) {
 			return parseControlResponse(node, originalJson);
 		}
+		else if (TYPE_RATE_LIMIT_EVENT.equals(type)) {
+			return parseRateLimitEvent(node);
+		}
 		else {
 			return parseRegularMessage(node);
 		}
@@ -201,6 +207,22 @@ public class ControlMessageParser {
 		}
 		catch (JsonProcessingException e) {
 			throw new MessageParseException("Failed to parse control response: " + e.getMessage(), e);
+		}
+	}
+
+	/**
+	 * Parses a rate limit event from a JsonNode.
+	 */
+	private ParsedMessage parseRateLimitEvent(JsonNode node) throws MessageParseException {
+		try {
+			RateLimitEvent event = objectMapper.treeToValue(node, RateLimitEvent.class);
+			logger.debug("Rate limit event: status={}, type={}, resetsAt={}", event.rateLimitInfo() != null ? event.rateLimitInfo().status() : "unknown",
+					event.rateLimitInfo() != null ? event.rateLimitInfo().rateLimitType() : "unknown",
+					event.rateLimitInfo() != null ? event.rateLimitInfo().resetsAt() : 0);
+			return ParsedMessage.RateLimitEventMessage.of(event);
+		}
+		catch (JsonProcessingException e) {
+			throw new MessageParseException("Failed to parse rate_limit_event: " + e.getMessage(), e);
 		}
 	}
 
