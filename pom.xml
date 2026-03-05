@@ -86,7 +86,6 @@
 
     <modules>
         <module>claude-code-sdk</module>
-        <module>examples</module>
     </modules>
 
     <dependencyManagement>
