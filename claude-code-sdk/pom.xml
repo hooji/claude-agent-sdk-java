@@ -16,6 +16,13 @@
 
     <name>Claude Code SDK</name>
     <description>Java SDK for interacting with Claude Code CLI - Low-level binding with resilience features</description>
+    <url>https://github.com/spring-ai-community/claude-agent-sdk-java</url>
+
+    <scm>
+        <url>https://github.com/spring-ai-community/claude-agent-sdk-java</url>
+        <connection>git://github.com/spring-ai-community/claude-agent-sdk-java.git</connection>
+        <developerConnection>git@github.com:spring-ai-community/claude-agent-sdk-java.git</developerConnection>
+    </scm>
 
     <dependencies>
         <!-- Core process execution -->
