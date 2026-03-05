@@ -33,6 +33,7 @@ jobs:
         run: |
           ./mvnw --batch-mode \
             -Prelease \
+            -Pjavadoc \
             -DskipTests \
             -DskipITs \
             deploy
