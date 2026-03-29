@@ -35,7 +35,7 @@ Each module is a standalone runnable example with integration tests.
 
 ## Installation
 
-> **Note**: This project is currently available as a SNAPSHOT. Releases to Maven Central are coming soon.
+> **Available on Maven Central** as a stable release.
 
 ### Maven
 
@@ -56,7 +56,7 @@ Add the snapshot repository and dependency to your `pom.xml`:
     <dependency>
         <groupId>org.springaicommunity</groupId>
         <artifactId>claude-code-sdk</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </dependency>
 </dependencies>
 ```
@@ -74,7 +74,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springaicommunity:claude-code-sdk:1.0.0-SNAPSHOT'
+    implementation 'org.springaicommunity:claude-code-sdk:1.0.0'
 }
 ```
 
