@@ -35,44 +35,21 @@ Each module is a standalone runnable example with integration tests.
 
 ## Installation
 
-> **Available on Maven Central** as a stable release.
+> **Available on Maven Central** — [view on Maven Central](https://central.sonatype.com/artifact/org.springaicommunity/claude-code-sdk)
 
 ### Maven
 
-Add the snapshot repository and dependency to your `pom.xml`:
-
 ```xml
-<repositories>
-    <repository>
-        <id>central-snapshots</id>
-        <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-        <snapshots>
-            <enabled>true</enabled>
-        </snapshots>
-    </repository>
-</repositories>
-
-<dependencies>
-    <dependency>
-        <groupId>org.springaicommunity</groupId>
-        <artifactId>claude-code-sdk</artifactId>
-        <version>1.0.0</version>
-    </dependency>
-</dependencies>
+<dependency>
+    <groupId>org.springaicommunity</groupId>
+    <artifactId>claude-code-sdk</artifactId>
+    <version>1.0.0</version>
+</dependency>
 ```
 
 ### Gradle
 
-Add the snapshot repository and dependency to your `build.gradle`:
-
 ```groovy
-repositories {
-    mavenCentral()
-    maven {
-        url 'https://central.sonatype.com/repository/maven-snapshots/'
-    }
-}
-
 dependencies {
     implementation 'org.springaicommunity:claude-code-sdk:1.0.0'
 }
