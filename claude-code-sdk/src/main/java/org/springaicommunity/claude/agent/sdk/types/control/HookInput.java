@@ -16,6 +16,7 @@
 
 package org.springaicommunity.claude.agent.sdk.types.control;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
@@ -27,6 +28,7 @@ import java.util.Optional;
  * Base sealed interface for all hook input types. Each hook event receives a specific
  * input type with relevant data.
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "hook_event_name",
 		visible = true)
 @JsonSubTypes({ @JsonSubTypes.Type(value = HookInput.PreToolUseInput.class, name = "PreToolUse"),
