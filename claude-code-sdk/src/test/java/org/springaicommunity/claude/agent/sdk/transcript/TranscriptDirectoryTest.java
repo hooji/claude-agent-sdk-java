@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springaicommunity.claude.agent.sdk.types.Message;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -124,6 +125,53 @@ class TranscriptDirectoryTest {
 					.as("round-trip JSON equivalence for " + name)
 					.isEqualTo(original);
 		}
+	}
+
+	@Test
+	void replayEmitsForkMarkersAndHistoryEnd() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		List<Message> replay = d.replayMessages(C);
+
+		List<ForkMarker> markers = replay.stream()
+				.filter(ForkMarker.class::isInstance)
+				.map(ForkMarker.class::cast)
+				.toList();
+		assertThat(markers).hasSize(2);
+		assertThat(markers.get(0).parentSessionId()).isEqualTo(A);
+		assertThat(markers.get(0).childSessionId()).isEqualTo(B);
+		assertThat(markers.get(0).messageIndex()).isEqualTo(6);
+		assertThat(markers.get(1).parentSessionId()).isEqualTo(B);
+		assertThat(markers.get(1).childSessionId()).isEqualTo(C);
+		assertThat(markers.get(1).messageIndex()).isEqualTo(14);
+
+		// terminal HistoryEnd, with the leaf's message count
+		Message last = replay.get(replay.size() - 1);
+		assertThat(last).isInstanceOf(HistoryEnd.class);
+		assertThat(((HistoryEnd) last).sessionId()).isEqualTo(C);
+		assertThat(((HistoryEnd) last).messageCount()).isEqualTo(23);
+	}
+
+	@Test
+	void replayContentFallsInTheRightBranch() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		List<Message> replay = d.replayMessages(C);
+
+		// Concatenate text per branch (split at the fork markers).
+		StringBuilder root = new StringBuilder();
+		StringBuilder branchB = new StringBuilder();
+		StringBuilder branchC = new StringBuilder();
+		StringBuilder target = root;
+		for (Message m : replay) {
+			if (m instanceof ForkMarker fm) {
+				target = fm.childSessionId().equals(B) ? branchB : branchC;
+				continue;
+			}
+			target.append(m.toString()).append('\n');
+		}
+		// A established AARDVARK; B added 42; C added OTTER.
+		assertThat(root.toString()).contains("AARDVARK");
+		assertThat(branchB.toString()).contains("42");
+		assertThat(branchC.toString()).contains("OTTER");
 	}
 
 	private static List<JsonNode> jsonLines(ObjectMapper m, Path file) throws Exception {

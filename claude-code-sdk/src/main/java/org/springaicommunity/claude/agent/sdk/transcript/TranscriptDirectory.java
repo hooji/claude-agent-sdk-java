@@ -34,6 +34,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springaicommunity.claude.agent.sdk.parsing.MessageParser;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import reactor.core.publisher.Flux;
 
 /**
  * Stage 1 of transcript discovery: loads <em>all</em> session transcripts under a directory
@@ -225,6 +226,56 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	/** @return only the sub-agent sidechain sessions. */
 	public List<Session> agentSessions() {
 		return sessions.stream().filter(Session::agentSession).toList();
+	}
+
+	/**
+	 * Replays a session's full history (root through this leaf) as a stream of SDK
+	 * {@link Message}s, in a form compatible with live message handling. A {@link ForkMarker}
+	 * is emitted at each fork boundary and a terminal {@link HistoryEnd} signals completion.
+	 * @param sessionId the session to replay
+	 * @return the replayed messages as a {@link Flux} (cold; emits on subscribe)
+	 */
+	public Flux<Message> replay(String sessionId) {
+		return Flux.fromIterable(replayMessages(sessionId));
+	}
+
+	/**
+	 * Eager (non-reactive) form of {@link #replay(String)}: the full replay as a list, with
+	 * {@link ForkMarker}s at fork boundaries and a trailing {@link HistoryEnd}.
+	 * @param sessionId the session to replay
+	 * @return the ordered replay messages
+	 * @throws java.util.NoSuchElementException if no such session is loaded
+	 */
+	public List<Message> replayMessages(String sessionId) {
+		Session s = byId(sessionId).orElseThrow();
+		List<TranscriptEntry> messages = s.messages();
+		List<ForkSegment> segments = s.segments();
+		List<Message> out = new ArrayList<>();
+		int seg = 0;
+		for (int i = 0; i < messages.size(); i++) {
+			// Crossing into a later segment: emit a fork marker at the boundary.
+			while (seg + 1 < segments.size() && i >= segments.get(seg + 1).startIndex()) {
+				seg++;
+				String parent = segments.get(seg - 1).originSessionId();
+				String child = segments.get(seg).originSessionId();
+				out.add(new ForkMarker(parent, child, segments.get(seg).startIndex(), siblingsOf(parent, child)));
+			}
+			Message m = messages.get(i).message();
+			if (m != null) {
+				out.add(m);
+			}
+		}
+		out.add(new HistoryEnd(sessionId, messages.size()));
+		return out;
+	}
+
+	/** Other sessions forked from {@code parent}, excluding {@code exclude} (for nav). */
+	private List<String> siblingsOf(String parent, String exclude) {
+		return sessions.stream()
+				.filter(o -> parent.equals(o.parentSessionId()) && !o.sessionId().equals(exclude))
+				.map(Session::sessionId)
+				.sorted()
+				.toList();
 	}
 
 	/**
