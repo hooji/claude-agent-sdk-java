@@ -666,6 +666,8 @@ public interface ClaudeClient {
 
 		private Map<String, McpServerConfig> mcpServers = new HashMap<>();
 
+		private boolean includePartialMessages = false;
+
 		AsyncSpec() {
 		}
 
@@ -755,6 +757,19 @@ public interface ClaudeClient {
 		}
 
 		/**
+		 * Enables token-level partial message streaming (CLI flag
+		 * {@code --include-partial-messages}). Required for
+		 * {@link ClaudeAsyncClient.TurnSpec#partialTextStream()} and
+		 * {@link ClaudeAsyncClient.TurnSpec#partialEvents()} to emit anything.
+		 * @param includePartialMessages whether to stream partial events
+		 * @return this builder
+		 */
+		public AsyncSpec includePartialMessages(boolean includePartialMessages) {
+			this.includePartialMessages = includePartialMessages;
+			return this;
+		}
+
+		/**
 		 * Builds and returns the configured ClaudeAsyncClient.
 		 * @return a new ClaudeAsyncClient instance
 		 * @throws IllegalArgumentException if workingDirectory is not set
@@ -777,6 +792,7 @@ public interface ClaudeClient {
 				.maxTurns(maxTurns)
 				.maxBudgetUsd(maxBudgetUsd)
 				.mcpServers(mcpServers)
+				.includePartialMessages(includePartialMessages)
 				.build();
 
 			return new DefaultClaudeAsyncClient(workingDirectory, options, timeout, claudePath, hookRegistry);

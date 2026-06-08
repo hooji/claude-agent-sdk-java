@@ -31,6 +31,7 @@ import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
+import org.springaicommunity.claude.agent.sdk.types.StreamEvent;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlResponse;
 import org.springaicommunity.claude.agent.sdk.types.control.HookEvent;
@@ -882,6 +883,28 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 		public Flux<Message> messages() {
 			// Lazy: send action triggers on subscribe, then stream all messages
 			return sendAction.get().thenMany(receiveResponse());
+		}
+
+		@Override
+		public Flux<String> partialTextStream() {
+			// Lazy: send action triggers on subscribe, then stream incremental text deltas
+			// (requires the client to be built with includePartialMessages(true)).
+			return sendAction.get()
+				.thenMany(receiveResponse())
+				.filter(StreamEvent.class::isInstance)
+				.cast(StreamEvent.class)
+				.filter(StreamEvent::hasTextDelta)
+				.map(StreamEvent::text);
+		}
+
+		@Override
+		public Flux<StreamEvent> partialEvents() {
+			// Lazy: send action triggers on subscribe, then stream raw partial events
+			// (requires the client to be built with includePartialMessages(true)).
+			return sendAction.get()
+				.thenMany(receiveResponse())
+				.filter(StreamEvent.class::isInstance)
+				.cast(StreamEvent.class);
 		}
 
 	}

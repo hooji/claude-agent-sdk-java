@@ -21,6 +21,7 @@ import org.springaicommunity.claude.agent.sdk.permission.ToolPermissionCallback;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
+import org.springaicommunity.claude.agent.sdk.types.StreamEvent;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -158,6 +159,39 @@ public interface ClaudeAsyncClient {
 		 * @return Flux of all Message types for this turn
 		 */
 		Flux<Message> messages();
+
+		/**
+		 * Streams incremental text deltas as the model generates them (token-level),
+		 * instead of one chunk per completed message. This is the primitive for a live
+		 * "typewriter" UI.
+		 *
+		 * <p>
+		 * <b>Requires</b> the client to be built with {@code includePartialMessages(true)}
+		 * (CLI flag {@code --include-partial-messages}); otherwise the CLI does not emit
+		 * partial events and this stream yields nothing but still completes normally at the
+		 * end of the turn.
+		 * </p>
+		 * <pre>{@code
+		 * client.query("Write a haiku").partialTextStream()
+		 *     .doOnNext(System.out::print)   // tokens arrive as generated
+		 *     .subscribe();
+		 * }</pre>
+		 * @return Flux of incremental text deltas for this turn
+		 */
+		Flux<String> partialTextStream();
+
+		/**
+		 * Streams the raw partial {@link StreamEvent}s for this turn (text and thinking
+		 * deltas, content-block start/stop, message_delta, etc.). Use this when you need
+		 * more than visible text — otherwise prefer {@link #partialTextStream()}.
+		 *
+		 * <p>
+		 * <b>Requires</b> {@code includePartialMessages(true)}; see
+		 * {@link #partialTextStream()}.
+		 * </p>
+		 * @return Flux of partial stream events for this turn
+		 */
+		Flux<StreamEvent> partialEvents();
 
 	}
 

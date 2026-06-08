@@ -70,6 +70,7 @@ public class MessageParser {
 			case "assistant" -> parseAssistantMessage(node);
 			case "system" -> parseSystemMessage(node);
 			case "result" -> parseResultMessage(node);
+			case "stream_event" -> parseStreamEvent(node);
 			default -> {
 				logger.error(
 						"Unrecognized message type '{}' — skipping. "
@@ -78,6 +79,34 @@ public class MessageParser {
 				yield null;
 			}
 		};
+	}
+
+	/**
+	 * Parses a partial streaming event (emitted when --include-partial-messages is set).
+	 * Extracts the inner Anthropic streaming event and, when present, the incremental text
+	 * or thinking delta so consumers can stream tokens as they are generated.
+	 */
+	@SuppressWarnings("unchecked")
+	private StreamEvent parseStreamEvent(JsonNode node) {
+		JsonNode eventNode = node.get("event");
+		if (eventNode == null) {
+			return new StreamEvent(null, null, null, Map.of());
+		}
+		String eventType = getStringField(eventNode, "type");
+		String text = null;
+		String thinking = null;
+		JsonNode delta = eventNode.get("delta");
+		if (delta != null) {
+			String deltaType = getStringField(delta, "type");
+			if ("text_delta".equals(deltaType)) {
+				text = getStringField(delta, "text");
+			}
+			else if ("thinking_delta".equals(deltaType)) {
+				thinking = getStringField(delta, "thinking");
+			}
+		}
+		Map<String, Object> rawEvent = objectMapper.convertValue(eventNode, Map.class);
+		return new StreamEvent(eventType, text, thinking, rawEvent);
 	}
 
 	private UserMessage parseUserMessage(JsonNode node) throws MessageParseException {
