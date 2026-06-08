@@ -1,4 +1,4 @@
-name: Release
+name: Tag Release
 
 # Builds a GitHub Release (fat jar + sources jar) whenever a v* tag is pushed.
 # Independent of the Maven Central release (which is workflow_dispatch only).
