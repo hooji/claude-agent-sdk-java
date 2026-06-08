@@ -192,6 +192,25 @@ class TranscriptDirectoryTest {
 				.contains("user", "assistant", "attachment", "queue-operation", "mode", "last-prompt");
 	}
 
+	@Test
+	void extractsReferencedFilePaths() throws Exception {
+		// Shapes observed in real transcripts: an edited_text_file attachment (filename) and
+		// a tool file operation (filePath).
+		ObjectMapper m = new ObjectMapper();
+		JsonNode raw = m.readTree("{\"type\":\"attachment\",\"attachment\":{\"type\":\"edited_text_file\","
+				+ "\"filename\":\"/Users/nat/proj/Foo.java\",\"snippet\":\"...\"},"
+				+ "\"toolUseResult\":{\"file\":{\"filePath\":\"/Users/nat/proj/Bar.java\"}},"
+				+ "\"note\":\"not a path\"}");
+		TranscriptEntry entry = new TranscriptEntry(1, null, null, "attachment", false, null, null, null, raw);
+
+		assertThat(entry.referencedFiles())
+				.containsExactlyInAnyOrder(Path.of("/Users/nat/proj/Foo.java"), Path.of("/Users/nat/proj/Bar.java"));
+
+		// RawTranscriptMessage (what replay emits) exposes the same convenience.
+		RawTranscriptMessage raw2 = new RawTranscriptMessage("attachment", null, raw);
+		assertThat(raw2.referencedFiles()).hasSize(2);
+	}
+
 	private static List<JsonNode> jsonLines(ObjectMapper m, Path file) throws Exception {
 		return Files.readAllLines(file).stream()
 				.filter(l -> !l.isBlank())

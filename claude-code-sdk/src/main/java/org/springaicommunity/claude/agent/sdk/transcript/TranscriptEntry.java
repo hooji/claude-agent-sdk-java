@@ -16,6 +16,9 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
+import java.nio.file.Path;
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 
@@ -50,5 +53,16 @@ public record TranscriptEntry(int lineNo, String uuid, String parentUuid, String
 	/** @return true if this line parsed into a typed conversation {@link Message}. */
 	public boolean hasMessage() {
 		return message != null;
+	}
+
+	/**
+	 * Extracts the on-disk file paths this line references (from {@code filePath} /
+	 * {@code filename} / {@code file_path} fields anywhere in its JSON). Useful for
+	 * attachments and tool/file operations: the bytes live on disk at these paths, so you
+	 * get a path without loading content into memory.
+	 * @return referenced absolute file paths, in encounter order (possibly empty)
+	 */
+	public List<Path> referencedFiles() {
+		return TranscriptPaths.referencedFiles(raw);
 	}
 }

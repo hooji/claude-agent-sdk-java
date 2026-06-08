@@ -16,6 +16,9 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
+import java.nio.file.Path;
+import java.util.List;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 
@@ -37,6 +40,15 @@ public record RawTranscriptMessage(String rawType, String uuid, JsonNode raw) im
 	@Override
 	public String getType() {
 		return rawType != null ? rawType : "unknown";
+	}
+
+	/**
+	 * Extracts the on-disk file paths this line references (e.g. an attachment's edited
+	 * file). The bytes live on disk at these paths — read them only if/when needed.
+	 * @return referenced absolute file paths (possibly empty)
+	 */
+	public List<Path> referencedFiles() {
+		return TranscriptPaths.referencedFiles(raw);
 	}
 
 	@Override
