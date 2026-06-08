@@ -174,6 +174,24 @@ class TranscriptDirectoryTest {
 		assertThat(branchC.toString()).contains("OTTER");
 	}
 
+	@Test
+	void replayEmitsEveryEntryNothingDropped() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		Session c = d.byId(C).orElseThrow();
+		List<Message> replay = d.replayMessages(C);
+
+		long markers = replay.stream().filter(m -> m.getType().equals("fork_marker")).count();
+		long ends = replay.stream().filter(m -> m.getType().equals("history_end")).count();
+		long emittedEntries = replay.size() - markers - ends;
+
+		// every line of the file is represented (none dropped)
+		assertThat(emittedEntries).isEqualTo(c.entries().size());
+
+		// non-conversation lines are now emitted (as RawTranscriptMessage) with their real type
+		assertThat(replay.stream().map(Message::getType).distinct())
+				.contains("user", "assistant", "attachment", "queue-operation", "mode", "last-prompt");
+	}
+
 	private static List<JsonNode> jsonLines(ObjectMapper m, Path file) throws Exception {
 		return Files.readAllLines(file).stream()
 				.filter(l -> !l.isBlank())

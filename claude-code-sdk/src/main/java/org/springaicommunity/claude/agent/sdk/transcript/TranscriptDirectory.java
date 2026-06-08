@@ -230,8 +230,13 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 
 	/**
 	 * Replays a session's full history (root through this leaf) as a stream of SDK
-	 * {@link Message}s, in a form compatible with live message handling. A {@link ForkMarker}
-	 * is emitted at each fork boundary and a terminal {@link HistoryEnd} signals completion.
+	 * {@link Message}s, in a form compatible with live message handling. <b>Every</b>
+	 * transcript line is emitted, in file order: conversation lines as their parsed
+	 * {@link Message} type, and all other lines (e.g. {@code attachment},
+	 * {@code queue-operation}, {@code mode}) as a {@link RawTranscriptMessage} carrying the
+	 * raw type and JSON — so the consumer can choose to surface or hide each. A
+	 * {@link ForkMarker} is emitted at each fork boundary and a terminal {@link HistoryEnd}
+	 * signals completion.
 	 * @param sessionId the session to replay
 	 * @return the replayed messages as a {@link Flux} (cold; emits on subscribe)
 	 */
@@ -248,24 +253,25 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 */
 	public List<Message> replayMessages(String sessionId) {
 		Session s = byId(sessionId).orElseThrow();
-		List<TranscriptEntry> messages = s.messages();
 		List<ForkSegment> segments = s.segments();
 		List<Message> out = new ArrayList<>();
+		int uuidPos = 0; // position within the uuid-bearing message list (the partition coordinate)
 		int seg = 0;
-		for (int i = 0; i < messages.size(); i++) {
-			// Crossing into a later segment: emit a fork marker at the boundary.
-			while (seg + 1 < segments.size() && i >= segments.get(seg + 1).startIndex()) {
-				seg++;
-				String parent = segments.get(seg - 1).originSessionId();
-				String child = segments.get(seg).originSessionId();
-				out.add(new ForkMarker(parent, child, segments.get(seg).startIndex(), siblingsOf(parent, child)));
+		for (TranscriptEntry e : s.entries()) {
+			if (e.hasUuid()) {
+				// Crossing into a later segment: emit a fork marker before this message.
+				while (seg + 1 < segments.size() && uuidPos >= segments.get(seg + 1).startIndex()) {
+					seg++;
+					String parent = segments.get(seg - 1).originSessionId();
+					String child = segments.get(seg).originSessionId();
+					out.add(new ForkMarker(parent, child, segments.get(seg).startIndex(), siblingsOf(parent, child)));
+				}
+				uuidPos++;
 			}
-			Message m = messages.get(i).message();
-			if (m != null) {
-				out.add(m);
-			}
+			// Emit EVERY line: parsed conversation message, or a raw passthrough otherwise.
+			out.add(e.hasMessage() ? e.message() : new RawTranscriptMessage(e.type(), e.uuid(), e.raw()));
 		}
-		out.add(new HistoryEnd(sessionId, messages.size()));
+		out.add(new HistoryEnd(sessionId, s.messages().size()));
 		return out;
 	}
 
