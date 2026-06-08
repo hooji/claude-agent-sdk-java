@@ -1,0 +1,151 @@
+/*
+ * Copyright 2025 Spring AI Community
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.springaicommunity.claude.agent.sdk.transcript;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Tests {@link TranscriptDirectory} against captured fork-lineage fixtures:
+ * A (4b6f429e) -&gt; B (29efebea) -&gt; C (52d26748), with uuid sets A(6) ⊂ B(14) ⊂ C(23).
+ */
+class TranscriptDirectoryTest {
+
+	static final String A = "4b6f429e-efe2-459e-8720-56da16280fec";
+	static final String B = "29efebea-1d97-4a6c-b39d-207831740ae4";
+	static final String C = "52d26748-15ae-4a11-b663-2b6d36195e29";
+
+	Path fixtures() throws Exception {
+		return Path.of(getClass().getResource("/transcripts/fork-lineage").toURI());
+	}
+
+	@Test
+	void loadsAllSessions() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		assertThat(d.sessions()).hasSize(3);
+		assertThat(d.byId(A)).isPresent();
+		assertThat(d.byId(B)).isPresent();
+		assertThat(d.byId(C)).isPresent();
+	}
+
+	@Test
+	void computesForkPartition() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		Session a = d.byId(A).orElseThrow();
+		Session b = d.byId(B).orElseThrow();
+		Session c = d.byId(C).orElseThrow();
+
+		assertThat(a.messages()).hasSize(6);
+		assertThat(b.messages()).hasSize(14);
+		assertThat(c.messages()).hasSize(23);
+
+		// A: single segment (its own); not a fork
+		assertThat(a.isFork()).isFalse();
+		assertThat(a.segments()).hasSize(1);
+		assertThat(a.segments().get(0)).isEqualTo(new ForkSegment(A, 0, 6));
+
+		// B: [A(0,6), B(6,8)]
+		assertThat(b.segments()).containsExactly(new ForkSegment(A, 0, 6), new ForkSegment(B, 6, 8));
+		assertThat(b.parentSessionId()).isEqualTo(A);
+
+		// C: [A(0,6), B(6,8), C(14,9)]
+		assertThat(c.segments()).containsExactly(new ForkSegment(A, 0, 6), new ForkSegment(B, 6, 8),
+				new ForkSegment(C, 14, 9));
+		assertThat(c.parentSessionId()).isEqualTo(B);
+		assertThat(c.forkPointIndex()).isEqualTo(14);
+
+		// segments tile the message list with no gaps/overlaps
+		assertTiling(c);
+	}
+
+	@Test
+	void buildsConversationFamilyTree() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		assertThat(d.families()).hasSize(1);
+		ConversationFamily fam = d.families().get(0);
+		assertThat(fam.rootSessionId()).isEqualTo(A);
+
+		ForkNode root = fam.tree();
+		assertThat(root.sessionId()).isEqualTo(A);
+		assertThat(root.children()).hasSize(1);
+
+		ForkNode bNode = root.children().get(0);
+		assertThat(bNode.sessionId()).isEqualTo(B);
+		assertThat(bNode.forkPointInParent()).isEqualTo(6); // B forked from A after A's 6 messages
+		assertThat(bNode.children()).hasSize(1);
+
+		ForkNode cNode = bNode.children().get(0);
+		assertThat(cNode.sessionId()).isEqualTo(C);
+		assertThat(cNode.forkPointInParent()).isEqualTo(14); // C forked from B after B's 14 messages
+		assertThat(cNode.children()).isEmpty();
+	}
+
+	@Test
+	void markdownDescribesStructure() throws Exception {
+		String md = TranscriptDirectory.load(fixtures()).toMarkdown();
+		assertThat(md).contains("independent conversations: 1");
+		assertThat(md).contains("original");
+		assertThat(md).contains("forked from");
+	}
+
+	@Test
+	void regeneratesJsonEquivalent(@TempDir Path tmp) throws Exception {
+		Path src = fixtures();
+		TranscriptDirectory d = TranscriptDirectory.load(src);
+		d.regenerate(tmp);
+
+		ObjectMapper m = new ObjectMapper();
+		for (String name : List.of(A + ".jsonl", B + ".jsonl", C + ".jsonl")) {
+			List<JsonNode> original = jsonLines(m, src.resolve(name));
+			List<JsonNode> regenerated = jsonLines(m, tmp.resolve(name));
+			assertThat(regenerated)
+					.as("round-trip JSON equivalence for " + name)
+					.isEqualTo(original);
+		}
+	}
+
+	private static List<JsonNode> jsonLines(ObjectMapper m, Path file) throws Exception {
+		return Files.readAllLines(file).stream()
+				.filter(l -> !l.isBlank())
+				.map(l -> {
+					try {
+						return m.readTree(l);
+					}
+					catch (Exception e) {
+						throw new RuntimeException(e);
+					}
+				})
+				.toList();
+	}
+
+	private static void assertTiling(Session s) {
+		int expected = 0;
+		for (ForkSegment seg : s.segments()) {
+			assertThat(seg.startIndex()).isEqualTo(expected);
+			expected += seg.count();
+		}
+		assertThat(expected).isEqualTo(s.messages().size());
+	}
+}
