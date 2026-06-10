@@ -9,6 +9,10 @@ Java SDK for interacting with [Claude Code CLI](https://docs.anthropic.com/en/do
 | **Simple One-Shot API** | `Query.text()` for quick answers in one line |
 | **Blocking Client** | `ClaudeSyncClient` for multi-turn conversations with Iterator |
 | **Reactive Client** | `ClaudeAsyncClient` with Flux/Mono for Spring WebFlux |
+| **Session History** | Retrieve any session's on-disk transcript straight from a client |
+| **Transcript Toolkit** | Load, replay, and analyze stored sessions, including fork lineage |
+| **Session Cloning** | Duplicate a session's conversation *and* working directory together |
+| **Token-Level Streaming** | Live partial-message deltas for typewriter-style UIs |
 | **Hook System** | Register callbacks for tool use events |
 | **MCP Integration** | Support for Model Context Protocol servers |
 | **Permission Callbacks** | Programmatic control over tool execution |
@@ -27,6 +31,18 @@ The tutorial covers:
 
 Each module is a standalone runnable example with integration tests.
 
+## What's New in This Fork
+
+This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https://github.com/spring-ai-community/claude-agent-sdk-java) that adds session-history tooling and packaging on top of the upstream 1.0.0 release:
+
+| Addition | Summary | Details |
+|----------|---------|---------|
+| **Session history on the client** (`TranscriptAware`) | Open a client, then call `client.getSession()` / `client.getTranscriptDirectory()` to read the conversation history from disk. Clients now also capture the CLI-assigned session id (`getCurrentSessionId()`). | [docs/session-history.md](docs/session-history.md) |
+| **Transcript toolkit** (`transcript` package) | `TranscriptDirectory` loads every stored session for a working directory, recovers `--fork-session` lineage, replays history as SDK `Message`s with fork markers, and extracts referenced file paths. | [docs/session-history.md](docs/session-history.md) |
+| **Session cloning** (`SessionClone`) | Clones a session into a new working directory — conversation *and* file state together — unlike `--fork-session`, which branches the conversation but shares one directory. | [docs/session-history.md](docs/session-history.md) |
+| **Token-level streaming** (`StreamEvent`) | `partialTextStream()` / `partialEvents()` on the async client surface the CLI's `--include-partial-messages` deltas as they are generated. | [docs/partial-streaming.md](docs/partial-streaming.md) |
+| **Fat-jar releases** | A `claude-code-sdk-all` uber jar (SDK + all runtime dependencies) published as a GitHub Release on every `v*` tag. | [docs/releasing.md](docs/releasing.md) |
+
 ## Requirements
 
 - Java 17+
@@ -35,9 +51,19 @@ Each module is a standalone runnable example with integration tests.
 
 ## Installation
 
-> **Available on Maven Central** — [view on Maven Central](https://central.sonatype.com/artifact/org.springaicommunity/claude-code-sdk)
+### Fat Jar (this fork's releases)
 
-### Maven
+Each `v*` tag publishes a [GitHub Release](https://github.com/hooji/claude-agent-sdk-java/releases) with `claude-code-sdk-all-<version>.jar` — the SDK plus all runtime dependencies (Jackson, Reactor, zt-exec) and a NOP SLF4J binding, ready to drop on a classpath:
+
+```bash
+java -cp claude-code-sdk-all-1.1.2.jar:your-app.jar your.Main
+```
+
+A `-sources.jar` is attached for IDE source attachment. See [docs/releasing.md](docs/releasing.md) for how releases are cut.
+
+### Maven Central (upstream 1.0.0)
+
+The upstream project publishes to [Maven Central](https://central.sonatype.com/artifact/org.springaicommunity/claude-code-sdk). Note that `1.0.0` **predates the fork additions** described above (no transcript/history APIs, no partial streaming):
 
 ```xml
 <dependency>
@@ -47,21 +73,17 @@ Each module is a standalone runnable example with integration tests.
 </dependency>
 ```
 
-### Gradle
-
-```groovy
-dependencies {
-    implementation 'org.springaicommunity:claude-code-sdk:1.0.0'
-}
-```
-
 ### Building from Source
 
+For the fork features as a regular (thin) Maven dependency, install locally:
+
 ```bash
-git clone https://github.com/spring-ai-community/claude-agent-sdk-java.git
+git clone https://github.com/hooji/claude-agent-sdk-java.git
 cd claude-agent-sdk-java
 ./mvnw install
 ```
+
+then depend on `org.springaicommunity:claude-code-sdk:1.1.2` from your local repository.
 
 ## Three API Styles
 
@@ -283,6 +305,61 @@ client.query("List files").messages()
     .subscribe();
 ```
 
+### Token-Level Streaming
+
+For typewriter-style UIs, enable partial messages and stream incremental text deltas as they are generated (instead of whole `AssistantMessage`s):
+
+```java
+ClaudeAsyncClient client = ClaudeClient.async()
+    .workingDirectory(Path.of("."))
+    .includePartialMessages(true)   // required: maps to --include-partial-messages
+    .build();
+
+client.connect("Write a haiku about Java").partialTextStream()
+    .doOnNext(System.out::print)    // each token/delta as it arrives
+    .subscribe();
+```
+
+`partialEvents()` exposes the raw `StreamEvent`s (thinking deltas, block boundaries) for advanced consumers. See [docs/partial-streaming.md](docs/partial-streaming.md).
+
+---
+
+## Session History & Transcripts
+
+Claude Code stores every session's transcript on disk. Both clients implement `TranscriptAware`, so you can open a client and immediately read the history of the sessions in its working directory — you supply the directory *you* ran Claude in, and the SDK figures out the storage location (symlink canonicalization and path sanitization included):
+
+```java
+try (ClaudeSyncClient client = ClaudeClient.sync()
+        .workingDirectory(Path.of("/path/you/see"))
+        .build()) {
+
+    String answer = client.connectText("Hello");
+
+    client.getCurrentSessionId();        // the CLI-assigned session id
+    Session session = client.getSession();  // this session's transcript (from disk)
+    TranscriptDirectory all = client.getTranscriptDirectory();  // every session here
+}
+```
+
+The `transcript` package also works standalone — no client needed:
+
+```java
+// All sessions for a working directory, with fork lineage recovered
+TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory(Path.of("/path/you/see"));
+System.out.println(dir.toMarkdown());    // conversation tree, forks, sub-agents
+
+// Replay a session's full history as SDK Message objects
+dir.replayMessages(sessionId).forEach(System.out::println);
+
+// Clone a session: conversation AND working-directory file state together
+SessionClone.Result clone = SessionClone.clone(sessionId,
+    Path.of("/original/dir"), Path.of("/clone/dir"));
+// resume it with: ClaudeClient.sync(CLIOptions.builder().resume(clone.sessionId()).build())
+//                 .workingDirectory(clone.workingDirectory())...
+```
+
+Full details — storage layout, fork recovery, replay semantics, cloning vs `--fork-session` — in [docs/session-history.md](docs/session-history.md).
+
 ---
 
 ## Configuration Options
@@ -327,14 +404,21 @@ claude-agent-sdk-java/
 │       │   ├── ClaudeClient.java       # Factory: sync() / async()
 │       │   ├── ClaudeSyncClient.java   # Blocking client interface
 │       │   ├── ClaudeAsyncClient.java  # Reactive client interface
+│       │   ├── TranscriptAware.java    # Session history access on clients
+│       │   ├── transcript/             # TranscriptDirectory, Session, SessionClone
 │       │   ├── transport/              # StreamingTransport
 │       │   ├── streaming/              # MessageStreamIterator
 │       │   ├── hooks/                  # HookRegistry, HookCallback
 │       │   ├── permission/             # ToolPermissionCallback
 │       │   ├── mcp/                    # MCP server configuration
-│       │   ├── types/                  # Message types, content blocks
+│       │   ├── types/                  # Message types, content blocks, StreamEvent
 │       │   └── parsing/                # JSON parsing, control messages
 │       └── test/
+├── fatjar/                   # claude-code-sdk-all uber jar (GitHub Releases)
+├── docs/                     # Deep-dive documentation
+│   ├── session-history.md    # Transcripts, fork recovery, replay, cloning
+│   ├── partial-streaming.md  # Token-level streaming
+│   └── releasing.md          # Release workflows and artifacts
 └── examples/
     ├── hello-world/          # All three APIs demonstrated
     ├── email-agent/          # ClaudeAsyncClient with Vaadin UI
@@ -370,9 +454,14 @@ The Java SDK mirrors the official [Python Claude Agent SDK](https://github.com/a
 | Permission callbacks | ✓ | ✓ | `ToolPermissionCallback` |
 | Agent definitions | ✓ | ✓ | `AgentDefinition` for subagents |
 | **Advanced** | | | |
+| Partial message streaming | ✓ | ✓ | `partialTextStream()` / `partialEvents()` |
 | File checkpointing | ✓ | ✗ | Not yet implemented |
 | Beta features (`--betas`) | ✓ | ✗ | Not yet implemented |
 | Sandbox settings | ✓ | ✗ | Not yet implemented |
+| **Java-only (this fork)** | | | |
+| Session history on clients | ✗ | ✓ | `TranscriptAware`: `getSession()`, `getTranscriptDirectory()` |
+| Transcript loading & replay | ✗ | ✓ | `TranscriptDirectory` with fork-lineage recovery |
+| Session cloning | ✗ | ✓ | `SessionClone`: conversation + file state together |
 
 ### Key Differences
 
