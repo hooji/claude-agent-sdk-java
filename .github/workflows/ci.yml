@@ -17,5 +17,12 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
       - name: Build and Test
         run: mvn clean verify
+        env:
+          # Live-conversation ITs run only when credentials are available; without
+          # this secret they skip cleanly (unit tests and binary-level ITs still run).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

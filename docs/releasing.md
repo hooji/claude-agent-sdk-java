@@ -49,12 +49,24 @@ misses it:
 
 ## CI and the integration tests
 
-`ClaudeCliTestBase` deliberately **fails** (rather than skips) every `*IT` class when no
-Claude CLI is discoverable, so a runner without the CLI turns the whole `verify` phase
-red even though all unit tests pass. On a stock GitHub runner that is the expected
-outcome today. To make CI green, either install the CLI in the workflow
-(`npm install -g @anthropic-ai/claude-code` — the live-API tests additionally need
-credentials) or change the base class to `assumeTrue`-skip when the CLI is absent.
+The integration tests come in two tiers, both rooted at `ClaudeCliTestBase`:
+
+- **CLI binary required.** Discovery still **fails loudly** (rather than skipping) when
+  no Claude CLI is found — `ci.yml` installs it
+  (`npm install -g @anthropic-ai/claude-code`), so a discovery failure means the
+  workflow is broken, not that tests should be quietly skipped.
+- **Live model required.** Most ITs hold real conversations. They run only when
+  credentials are detected — `ANTHROPIC_API_KEY` / `CLAUDE_CODE_OAUTH_TOKEN` in the
+  environment, a CLI login (`~/.claude/.credentials.json`), or the explicit
+  `CLAUDE_SDK_LIVE_TESTS=true` opt-in (for environments with host-managed auth that is
+  invisible to the process). Otherwise they **skip** with a clear message. Binary-only
+  tests (e.g. `CLIFlagParityIT`, which inspects `claude --help`) opt out via
+  `requiresApi()` and always run.
+
+`ci.yml` forwards the `ANTHROPIC_API_KEY` repository secret to the test step, so adding
+that secret is all it takes to light up the full live suite in CI (note: secrets are not
+exposed to pull requests from forks). Without it, CI runs the unit tests plus the
+binary-level ITs — and stays green.
 
 `publish-snapshot.yml` requires GPG signing secrets (`maven-gpg-plugin`); without them
 configured on the repository it fails at the sign step.
