@@ -17,11 +17,13 @@
 package org.springaicommunity.claude.agent.sdk.test;
 
 import org.springaicommunity.claude.agent.sdk.config.ClaudeCliDiscovery;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -78,6 +80,52 @@ public abstract class ClaudeCliTestBase {
 			// message
 			throw new ClaudeCliNotAvailableException(errorMsg);
 		}
+	}
+
+	/**
+	 * Skips API-dependent tests when no Claude credentials are available (e.g. CI
+	 * runners without an {@code ANTHROPIC_API_KEY} secret). Runs after CLI discovery;
+	 * subclasses that exercise only the CLI binary (no model) override
+	 * {@link #requiresApi()} to keep running without credentials.
+	 */
+	@BeforeAll
+	void checkApiRequirement() {
+		if (requiresApi()) {
+			Assumptions.assumeTrue(apiCredentialsAvailable(),
+					"Skipping: this test talks to a live Claude model and no credentials were detected "
+							+ "(set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN, log in with the CLI, "
+							+ "or force with CLAUDE_SDK_LIVE_TESTS=true)");
+		}
+	}
+
+	/**
+	 * Whether this test class needs a live Claude model behind the CLI. Defaults to
+	 * {@code true}; override to {@code false} for tests that only exercise the CLI
+	 * binary (e.g. flag parity via {@code claude --help}).
+	 */
+	protected boolean requiresApi() {
+		return true;
+	}
+
+	/**
+	 * Best-effort detection of usable Claude credentials: an API key or OAuth token in
+	 * the environment, a CLI login on this machine, or the explicit
+	 * {@code CLAUDE_SDK_LIVE_TESTS=true} opt-in (for environments with host-managed
+	 * auth that is invisible to this process).
+	 */
+	protected static boolean apiCredentialsAvailable() {
+		if ("true".equalsIgnoreCase(System.getenv("CLAUDE_SDK_LIVE_TESTS"))) {
+			return true;
+		}
+		if (isSet(System.getenv("ANTHROPIC_API_KEY")) || isSet(System.getenv("CLAUDE_CODE_OAUTH_TOKEN"))) {
+			return true;
+		}
+		Path credentials = Paths.get(System.getProperty("user.home"), ".claude", ".credentials.json");
+		return Files.isRegularFile(credentials);
+	}
+
+	private static boolean isSet(String value) {
+		return value != null && !value.isBlank();
 	}
 
 	/**

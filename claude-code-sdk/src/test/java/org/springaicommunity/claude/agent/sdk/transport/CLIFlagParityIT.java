@@ -53,6 +53,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("CLI Flag Parity IT")
 class CLIFlagParityIT extends ClaudeCliTestBase {
 
+	@Override
+	protected boolean requiresApi() {
+		return false; // only inspects `claude --help`; no model behind it needed
+	}
+
 	private static Set<String> cliFlags;
 
 	private static String cliHelpOutput;
@@ -87,7 +92,15 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			"betas",
 
 			// Always added by SDK automatically
-			"verbose");
+			"verbose",
+
+			// Interactive/desktop workflow flags introduced by CLI 2.1.x — not
+			// applicable to SDK stream-json usage
+			"brief", "tmux", "worktree", "w", "name", "bare", "from-pr", "prompt-suggestions", "remote-control",
+			"remote-control-session-name-prefix", "plugin-url", "n", "file", "debug-file",
+
+			// CLI 2.1.x flags that may warrant SDK support later — not yet evaluated
+			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections");
 
 	/**
 	 * Mapping from CLI flag names to CLIOptions builder method names. Only needed when
