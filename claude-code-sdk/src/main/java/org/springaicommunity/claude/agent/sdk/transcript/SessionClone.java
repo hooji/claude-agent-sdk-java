@@ -139,9 +139,8 @@ public final class SessionClone {
 				"No transcript for session " + sessionId + " under " + projectsRoot + " (expected " + expected + ")");
 	}
 
-	/** Claude names a working dir's transcript folder by replacing '/' and '.' with '-'. */
 	static String sanitize(Path realPath) {
-		return realPath.toString().replaceAll("[/.]", "-");
+		return TranscriptDirectory.sanitize(realPath);
 	}
 
 	private static boolean isNonEmptyDir(Path dir) throws IOException {

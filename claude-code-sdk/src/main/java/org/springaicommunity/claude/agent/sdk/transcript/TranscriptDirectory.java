@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -213,9 +212,31 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 		return new ForkNode(s, s.forkPointIndex(), children);
 	}
 
-	/** @return the session with the given id, if loaded. */
-	public Optional<Session> byId(String sessionId) {
-		return sessions.stream().filter(s -> s.sessionId().equals(sessionId)).findFirst();
+	/**
+	 * Converts a real (symlink-resolved) working directory path to the sanitized folder
+	 * name Claude Code uses under {@code ~/.claude/projects/}. Every character that is not
+	 * ASCII alphanumeric is replaced with {@code -}, matching Claude Code's own naming
+	 * convention (handles slashes, dots, spaces, and other special characters).
+	 * @param realPath the symlink-resolved absolute path
+	 * @return the sanitized folder name
+	 */
+	public static String sanitize(Path realPath) {
+		return realPath.toString().replaceAll("[^a-zA-Z0-9]", "-");
+	}
+
+	/**
+	 * Returns an empty {@link TranscriptDirectory} for a directory that does not yet
+	 * exist on disk (e.g. no sessions have been started in that working directory yet).
+	 * @param directory the (absent) transcript directory path
+	 * @return an empty instance with no sessions or families
+	 */
+	public static TranscriptDirectory empty(Path directory) {
+		return new TranscriptDirectory(directory, List.of(), List.of());
+	}
+
+	/** @return the session with the given id, or {@code null} if not loaded. */
+	public Session byId(String sessionId) {
+		return sessions.stream().filter(s -> s.sessionId().equals(sessionId)).findFirst().orElse(null);
 	}
 
 	/** @return only the main (non sub-agent) sessions. */
@@ -252,7 +273,10 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * @throws java.util.NoSuchElementException if no such session is loaded
 	 */
 	public List<Message> replayMessages(String sessionId) {
-		Session s = byId(sessionId).orElseThrow();
+		Session s = byId(sessionId);
+		if (s == null) {
+			throw new java.util.NoSuchElementException("No session loaded with id: " + sessionId);
+		}
 		List<ForkSegment> segments = s.segments();
 		List<Message> out = new ArrayList<>();
 		int uuidPos = 0; // position within the uuid-bearing message list (the partition coordinate)
