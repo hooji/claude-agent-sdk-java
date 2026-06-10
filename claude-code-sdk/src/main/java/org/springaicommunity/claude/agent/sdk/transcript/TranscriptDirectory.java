@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -58,6 +59,86 @@ import reactor.core.publisher.Flux;
  * @param families independent conversations (grouped by shared root), each with its fork tree
  */
 public record TranscriptDirectory(Path directory, List<Session> sessions, List<ConversationFamily> families) {
+
+	/**
+	 * Loads the transcripts for the sessions executed in {@code workingDirectory} — the
+	 * directory the user actually ran Claude in, not the storage location. The
+	 * corresponding storage directory under the projects root is resolved via
+	 * {@link #projectsDirFor(Path)}.
+	 * @param workingDirectory the directory Claude sessions were executed in
+	 * @return the loaded transcripts; empty (no sessions) if none exist yet
+	 */
+	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory) throws IOException {
+		return forWorkingDirectory(workingDirectory, projectsRoot());
+	}
+
+	/**
+	 * Variant of {@link #forWorkingDirectory(Path)} with an explicit projects root (the
+	 * directory holding the per-working-directory transcript folders).
+	 */
+	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, Path projectsRoot)
+			throws IOException {
+		Path dir = projectsDirFor(workingDirectory, projectsRoot);
+		if (!Files.isDirectory(dir)) {
+			return new TranscriptDirectory(dir, List.of(), List.of());
+		}
+		return load(dir);
+	}
+
+	/**
+	 * The Claude Code projects root holding all transcript folders:
+	 * {@code $CLAUDE_CONFIG_DIR/projects} when the {@code CLAUDE_CONFIG_DIR} environment
+	 * variable (or the {@code claude.config.dir} system property, which takes precedence)
+	 * is set, otherwise {@code ~/.claude/projects}.
+	 */
+	public static Path projectsRoot() {
+		String configDir = System.getProperty("claude.config.dir");
+		if (configDir == null || configDir.isBlank()) {
+			configDir = System.getenv("CLAUDE_CONFIG_DIR");
+		}
+		Path base = configDir == null || configDir.isBlank()
+				? Path.of(System.getProperty("user.home"), ".claude") : Path.of(configDir);
+		return base.resolve("projects");
+	}
+
+	/**
+	 * Maps a session's working directory (the directory the user ran Claude in) to the
+	 * folder under the default projects root where Claude Code stores that directory's
+	 * transcripts. Symbolic links in the path are resolved first, because Claude Code keys
+	 * transcript storage by the <em>canonical</em> path (e.g. a session run in
+	 * {@code /Users/nat/shared/x} where {@code shared} links to
+	 * {@code /Volumes/My Shared Files/shared} is stored under
+	 * {@code -Volumes-My-Shared-Files-shared-x}).
+	 * @param workingDirectory the directory Claude sessions were executed in
+	 * @return the transcript folder (which may not exist yet)
+	 */
+	public static Path projectsDirFor(Path workingDirectory) {
+		return projectsDirFor(workingDirectory, projectsRoot());
+	}
+
+	/** Variant of {@link #projectsDirFor(Path)} with an explicit projects root. */
+	public static Path projectsDirFor(Path workingDirectory, Path projectsRoot) {
+		return projectsRoot.resolve(sanitize(canonicalize(workingDirectory)));
+	}
+
+	/**
+	 * Claude Code names a working directory's transcript folder by replacing every
+	 * non-alphanumeric character of its canonical path with {@code '-'} (verified against
+	 * the CLI: {@code '/'}, {@code '.'}, {@code '_'} and spaces all map to {@code '-'}).
+	 */
+	static String sanitize(Path realPath) {
+		return realPath.toString().replaceAll("[^a-zA-Z0-9]", "-");
+	}
+
+	/** Resolves symlinks when the path exists; otherwise just absolutizes/normalizes. */
+	private static Path canonicalize(Path dir) {
+		try {
+			return dir.toRealPath();
+		}
+		catch (IOException e) {
+			return dir.toAbsolutePath().normalize();
+		}
+	}
 
 	/** Loads and analyzes every {@code *.jsonl} transcript directly under {@code directory}. */
 	public static TranscriptDirectory load(Path directory) throws IOException {
@@ -226,6 +307,23 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	/** @return only the sub-agent sidechain sessions. */
 	public List<Session> agentSessions() {
 		return sessions.stream().filter(Session::agentSession).toList();
+	}
+
+	/**
+	 * The most recently modified main session — the same notion of "most recent" the CLI's
+	 * {@code --continue} resumes. Best-effort when several sessions run concurrently in
+	 * the same directory.
+	 * @return the most recent main session, or {@code null} if none are loaded
+	 */
+	public Session mostRecentSession() {
+		return mainSessions().stream().max(Comparator.comparing(s -> {
+			try {
+				return Files.getLastModifiedTime(s.file());
+			}
+			catch (IOException e) {
+				return FileTime.fromMillis(0);
+			}
+		})).orElse(null);
 	}
 
 	/**
