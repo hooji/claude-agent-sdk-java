@@ -80,10 +80,17 @@ import java.util.Optional;
  *     .subscribe();
  * }</pre>
  *
+ * <p>
+ * As a {@link TranscriptAware} client, it also gives direct access to the on-disk history
+ * of the sessions in its working directory via {@link #getSession()} and
+ * {@link #getTranscriptDirectory()}.
+ * </p>
+ *
  * @see ClaudeSyncClient
  * @see ClaudeClient#async()
+ * @see TranscriptAware
  */
-public interface ClaudeAsyncClient {
+public interface ClaudeAsyncClient extends TranscriptAware {
 
 	// ========================================================================
 	// TurnSpec - Response handling for a single turn

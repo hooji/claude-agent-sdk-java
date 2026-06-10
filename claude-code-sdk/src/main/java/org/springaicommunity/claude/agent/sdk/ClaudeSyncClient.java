@@ -59,10 +59,17 @@ import java.util.Map;
  * is the blocking counterpart to {@code McpAsyncClient}.
  * </p>
  *
+ * <p>
+ * As a {@link TranscriptAware} client, it also gives direct access to the on-disk history
+ * of the sessions in its working directory via {@link #getSession()} and
+ * {@link #getTranscriptDirectory()}.
+ * </p>
+ *
  * @see ClaudeClient
  * @see ClaudeAsyncClient
+ * @see TranscriptAware
  */
-public interface ClaudeSyncClient extends AutoCloseable {
+public interface ClaudeSyncClient extends TranscriptAware, AutoCloseable {
 
 	/**
 	 * Connects to the Claude CLI without an initial prompt. The client is ready for

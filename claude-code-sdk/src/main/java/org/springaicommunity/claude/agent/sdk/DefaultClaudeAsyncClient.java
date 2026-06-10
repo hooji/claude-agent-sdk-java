@@ -32,6 +32,7 @@ import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.StreamEvent;
+import org.springaicommunity.claude.agent.sdk.types.SystemMessage;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlResponse;
 import org.springaicommunity.claude.agent.sdk.types.control.HookEvent;
@@ -105,6 +106,9 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	private final AtomicReference<Map<String, Object>> serverInfo = new AtomicReference<>(Collections.emptyMap());
 
 	private final AtomicReference<String> currentSessionId = new AtomicReference<>(DEFAULT_SESSION_ID);
+
+	// The real session id assigned by the CLI, captured from inbound messages
+	private final AtomicReference<String> capturedSessionId = new AtomicReference<>();
 
 	// Runtime state tracking
 	private final AtomicReference<String> currentModel = new AtomicReference<>();
@@ -525,12 +529,19 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 		return this;
 	}
 
-	/**
-	 * Gets the current session ID.
-	 * @return the current session ID
-	 */
+	@Override
+	public Path getWorkingDirectory() {
+		return workingDirectory;
+	}
+
+	@Override
 	public String getCurrentSessionId() {
-		return currentSessionId.get();
+		String captured = capturedSessionId.get();
+		if (captured != null) {
+			return captured;
+		}
+		String explicit = currentSessionId.get();
+		return DEFAULT_SESSION_ID.equals(explicit) ? null : explicit;
 	}
 
 	/**
@@ -577,6 +588,8 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	 * @param message the parsed message from the CLI
 	 */
 	private void handleMessage(ParsedMessage message) {
+		captureSessionId(message);
+
 		// Route to raw sink for low-level access
 		if (rawMessageSink != null) {
 			rawMessageSink.tryEmitNext(message);
@@ -628,6 +641,21 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 			else {
 				logger.debug("handleMessage: no turn sink active, skipping {}", msg.getClass().getSimpleName());
 			}
+		}
+	}
+
+	// Package-private for tests. The CLI stamps its session id on every system message
+	// (data.session_id) and on result messages, so observe whichever arrives.
+	void captureSessionId(ParsedMessage message) {
+		Message msg = message.asMessage();
+		if (msg instanceof SystemMessage system && system.data() != null) {
+			Object sid = system.data().get("session_id");
+			if (sid != null) {
+				capturedSessionId.set(sid.toString());
+			}
+		}
+		else if (msg instanceof ResultMessage result && result.sessionId() != null) {
+			capturedSessionId.set(result.sessionId());
 		}
 	}
 

@@ -64,11 +64,11 @@ public final class SessionClone {
 
 	/**
 	 * Clones {@code sessionId} (whose working directory is {@code sourceDir}) into
-	 * {@code targetDir}, using the default Claude projects root ({@code ~/.claude/projects}).
+	 * {@code targetDir}, using the default Claude projects root (see
+	 * {@link TranscriptDirectory#projectsRoot()}).
 	 */
 	public static Result clone(String sessionId, Path sourceDir, Path targetDir) throws IOException {
-		Path projectsRoot = Path.of(System.getProperty("user.home"), ".claude", "projects");
-		return clone(sessionId, sourceDir, targetDir, projectsRoot);
+		return clone(sessionId, sourceDir, targetDir, TranscriptDirectory.projectsRoot());
 	}
 
 	/**
@@ -139,9 +139,9 @@ public final class SessionClone {
 				"No transcript for session " + sessionId + " under " + projectsRoot + " (expected " + expected + ")");
 	}
 
-	/** Claude names a working dir's transcript folder by replacing '/' and '.' with '-'. */
+	/** Claude names a working dir's transcript folder by replacing non-alphanumerics with '-'. */
 	static String sanitize(Path realPath) {
-		return realPath.toString().replaceAll("[/.]", "-");
+		return TranscriptDirectory.sanitize(realPath);
 	}
 
 	private static boolean isNonEmptyDir(Path dir) throws IOException {
