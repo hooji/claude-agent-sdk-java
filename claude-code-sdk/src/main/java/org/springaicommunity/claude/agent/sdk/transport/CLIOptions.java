@@ -42,7 +42,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		// Advanced options for full Python SDK parity
 		List<Path> addDirs, String settings, String permissionPromptToolName, Map<String, String> extraArgs,
 		List<PluginConfig> plugins, Map<String, String> env, Integer maxBufferSize, String user,
-		StderrHandler stderrHandler, ToolPermissionCallback toolPermissionCallback) {
+		StderrHandler stderrHandler, TransportToolPermissionCallback toolPermissionCallback) {
 
 	/** Default maximum buffer size for JSON parsing (1MB). */
 	public static final int DEFAULT_MAX_BUFFER_SIZE = 1024 * 1024;
@@ -238,7 +238,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		return stderrHandler;
 	}
 
-	public ToolPermissionCallback getToolPermissionCallback() {
+	public TransportToolPermissionCallback getToolPermissionCallback() {
 		return toolPermissionCallback;
 	}
 
@@ -308,7 +308,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		private StderrHandler stderrHandler;
 
-		private ToolPermissionCallback toolPermissionCallback;
+		private TransportToolPermissionCallback toolPermissionCallback;
 
 		public Builder model(String model) {
 			this.model = model;
@@ -646,7 +646,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		 * @param toolPermissionCallback callback for tool permission checks
 		 * @return this builder
 		 */
-		public Builder toolPermissionCallback(ToolPermissionCallback toolPermissionCallback) {
+		public Builder toolPermissionCallback(TransportToolPermissionCallback toolPermissionCallback) {
 			this.toolPermissionCallback = toolPermissionCallback;
 			return this;
 		}
