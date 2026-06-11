@@ -100,7 +100,10 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			"remote-control-session-name-prefix", "plugin-url", "n", "file", "debug-file",
 
 			// CLI 2.1.x flags that may warrant SDK support later — not yet evaluated
-			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections");
+			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections",
+
+			// Hardcoded to stream-json by StreamingTransport — not configurable
+			"output-format", "input-format");
 
 	/**
 	 * Mapping from CLI flag names to CLIOptions builder method names. Only needed when
@@ -111,8 +114,6 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			java.util.Map.entry("r", "resume"), java.util.Map.entry("allowed-tools", "allowedTools"),
 			java.util.Map.entry("disallowed-tools", "disallowedTools"), java.util.Map.entry("add-dir", "addDirs"),
 			java.util.Map.entry("plugin-dir", "plugins"), java.util.Map.entry("mcp-config", "mcpServers"),
-			java.util.Map.entry("output-format", "outputFormat"), java.util.Map.entry("input-format", "outputFormat"), // Handled
-																														// internally
 			java.util.Map.entry("system-prompt", "systemPrompt"),
 			java.util.Map.entry("append-system-prompt", "appendSystemPrompt"),
 			java.util.Map.entry("json-schema", "jsonSchema"), java.util.Map.entry("max-budget-usd", "maxBudgetUsd"),

@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.transport;
 
-import org.springaicommunity.claude.agent.sdk.config.OutputFormat;
 import org.springaicommunity.claude.agent.sdk.config.PermissionMode;
 import org.springaicommunity.claude.agent.sdk.config.PluginConfig;
 import org.springaicommunity.claude.agent.sdk.mcp.McpServerConfig;
@@ -34,7 +33,7 @@ import java.util.Map;
  */
 public record CLIOptions(String model, String systemPrompt, Integer maxTokens, Integer maxThinkingTokens,
 		Duration timeout, List<String> tools, List<String> allowedTools, List<String> disallowedTools,
-		PermissionMode permissionMode, boolean interactive, OutputFormat outputFormat, List<String> settingSources,
+		PermissionMode permissionMode, boolean interactive, List<String> settingSources,
 		String agents, boolean forkSession, boolean includePartialMessages, Map<String, Object> jsonSchema,
 		Map<String, McpServerConfig> mcpServers, Integer maxTurns, Double maxBudgetUsd, String fallbackModel,
 		String appendSystemPrompt,
@@ -77,9 +76,6 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		if (permissionMode == null) {
 			permissionMode = PermissionMode.DEFAULT;
 		}
-		if (outputFormat == null) {
-			outputFormat = OutputFormat.JSON; // Default to JSON for non-reactive
-		}
 		if (settingSources == null) {
 			settingSources = List.of(); // Default: no filesystem settings loaded
 		}
@@ -107,7 +103,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 	public static CLIOptions defaultOptions() {
 		return new CLIOptions(null, null, null, null, Duration.ofMinutes(2), null, List.of(), List.of(),
-				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, OutputFormat.JSON, List.of(), null, false, false,
+				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, List.of(), null, false, false,
 				null, Map.of(), null, null, null, null, false, null, List.of(), null, null, Map.of(), List.of(),
 				Map.of(), null, null, null, null);
 	}
@@ -151,10 +147,6 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 	public boolean isInteractive() {
 		return interactive;
-	}
-
-	public OutputFormat getOutputFormat() {
-		return outputFormat;
 	}
 
 	public List<String> getSettingSources() {
@@ -273,8 +265,6 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		private boolean interactive = false;
 
-		private OutputFormat outputFormat = OutputFormat.JSON;
-
 		private List<String> settingSources = List.of();
 
 		private String agents;
@@ -374,11 +364,6 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		public Builder interactive(boolean interactive) {
 			this.interactive = interactive;
-			return this;
-		}
-
-		public Builder outputFormat(OutputFormat outputFormat) {
-			this.outputFormat = outputFormat;
 			return this;
 		}
 
@@ -668,7 +653,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		public CLIOptions build() {
 			return new CLIOptions(model, systemPrompt, maxTokens, maxThinkingTokens, timeout, tools, allowedTools,
-					disallowedTools, permissionMode, interactive, outputFormat, settingSources, agents, forkSession,
+					disallowedTools, permissionMode, interactive, settingSources, agents, forkSession,
 					includePartialMessages, jsonSchema, mcpServers, maxTurns, maxBudgetUsd, fallbackModel,
 					appendSystemPrompt, continueConversation, resume, addDirs, settings, permissionPromptToolName,
 					extraArgs, plugins, env, maxBufferSize, user, stderrHandler, toolPermissionCallback);
