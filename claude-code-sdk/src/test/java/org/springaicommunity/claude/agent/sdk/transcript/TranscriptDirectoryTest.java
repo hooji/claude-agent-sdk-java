@@ -193,6 +193,21 @@ class TranscriptDirectoryTest {
 	}
 
 	@Test
+	void sessionReplaysItself() throws Exception {
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		Session c = d.byId(C).orElseThrow();
+
+		// replay lives on the Session; the directory method is a delegating convenience
+		assertThat(c.replayMessages()).isEqualTo(d.replayMessages(C));
+
+		// the reactive form emits the same sequence
+		assertThat(c.replay().collectList().block()).isEqualTo(c.replayMessages());
+
+		// fork markers (with sibling navigation) are precomputed per segment boundary
+		assertThat(c.forkMarkers()).hasSize(c.segments().size() - 1);
+	}
+
+	@Test
 	void extractsReferencedFilePaths() throws Exception {
 		// Shapes observed in real transcripts: an edited_text_file attachment (filename) and
 		// a tool file operation (filePath).

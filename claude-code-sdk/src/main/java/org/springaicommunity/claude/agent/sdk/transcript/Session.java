@@ -18,14 +18,20 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import org.springaicommunity.claude.agent.sdk.types.Message;
+import reactor.core.publisher.Flux;
+
 /**
  * One loaded session transcript file, mirroring its on-disk content plus the recovered fork
- * partition.
+ * partition. A session can {@linkplain #replayMessages() replay} its own full history; the
+ * directory-wide knowledge that requires (sibling forks for the {@link ForkMarker}s) is
+ * precomputed at load time.
  *
  * @param sessionId the session id (the transcript filename without extension)
  * @param file the source {@code .jsonl} path
@@ -36,9 +42,12 @@ import com.fasterxml.jackson.databind.JsonNode;
  * partition indexes into)
  * @param segments the fork partition over {@code messages}; size 1 when the session has no
  * fork points (it is then a single segment owned by this session)
+ * @param forkMarkers one precomputed {@link ForkMarker} per segment boundary (so always
+ * {@code segments.size() - 1} of them), in order
  */
 public record Session(String sessionId, Path file, boolean agentSession, String agentId,
-		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments) {
+		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments,
+		List<ForkMarker> forkMarkers) {
 
 	/** @return true if this session inherited history from a fork (more than one segment). */
 	public boolean isFork() {
@@ -108,5 +117,45 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 			throw new IllegalStateException("Cannot derive the projects root from transcript path " + file);
 		}
 		return SessionArchive.create(sessionId, workingDir, targetArchive, metadata, projectsRoot);
+	}
+
+	/**
+	 * Replays this session's full history (root through this leaf) as SDK
+	 * {@link Message}s, in a form compatible with live message handling. <b>Every</b>
+	 * transcript line is emitted, in file order: conversation lines as their parsed
+	 * {@link Message} type, and all other lines (e.g. {@code attachment},
+	 * {@code queue-operation}, {@code mode}) as a {@link RawTranscriptMessage} carrying the
+	 * raw type and JSON — so the consumer can choose to surface or hide each. A
+	 * {@link ForkMarker} is emitted at each fork boundary and a terminal {@link HistoryEnd}
+	 * signals completion. Unlike {@link #messages()}, which is the raw uuid-bearing entry
+	 * list, this view interleaves those synthetic marker messages.
+	 * @return the ordered replay messages
+	 */
+	public List<Message> replayMessages() {
+		List<Message> out = new ArrayList<>();
+		int uuidPos = 0; // position within the uuid-bearing message list (the partition coordinate)
+		int seg = 0;
+		for (TranscriptEntry e : entries) {
+			if (e.hasUuid()) {
+				// Crossing into a later segment: emit its fork marker before this message.
+				while (seg + 1 < segments.size() && uuidPos >= segments.get(seg + 1).startIndex()) {
+					seg++;
+					out.add(forkMarkers.get(seg - 1));
+				}
+				uuidPos++;
+			}
+			// Emit EVERY line: parsed conversation message, or a raw passthrough otherwise.
+			out.add(e.hasMessage() ? e.message() : new RawTranscriptMessage(e.type(), e.uuid(), e.raw()));
+		}
+		out.add(new HistoryEnd(sessionId, messages.size()));
+		return out;
+	}
+
+	/**
+	 * Reactive form of {@link #replayMessages()}.
+	 * @return the replayed messages as a {@link Flux} (cold; emits on subscribe)
+	 */
+	public Flux<Message> replay() {
+		return Flux.fromIterable(replayMessages());
 	}
 }

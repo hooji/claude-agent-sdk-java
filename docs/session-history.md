@@ -141,9 +141,11 @@ a readable tree of conversations, forks, and sub-agent sessions.
 
 ## Replay
 
-`replayMessages(sessionId)` (eager `List<Message>`) and `replay(sessionId)` (cold
-`Flux<Message>`) emit a session's full history — root through leaf — in a form compatible
-with live message handling:
+`Session.replayMessages()` (eager `List<Message>`) and `Session.replay()` (cold
+`Flux<Message>`) emit the session's full history — root through leaf — in a form
+compatible with live message handling. (`TranscriptDirectory.replayMessages(sessionId)` /
+`replay(sessionId)` are id-addressed conveniences that delegate to the session; the
+sibling-fork knowledge the markers need is precomputed at load time.)
 
 - Conversation lines arrive as their parsed types (`UserMessage`, `AssistantMessage`, …).
 - Every other line (`attachment`, `queue-operation`, `mode`, …) arrives as a
@@ -154,7 +156,7 @@ with live message handling:
 - A terminal `HistoryEnd` signals completion with the final message count.
 
 ```java
-dir.replay(sessionId)
+dir.byId(sessionId).orElseThrow().replay()
     .doOnNext(msg -> {
         switch (msg) {
             case ForkMarker fm -> ui.showBranchPoint(fm);
