@@ -56,7 +56,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 Each `v*` tag publishes a [GitHub Release](https://github.com/hooji/claude-agent-sdk-java/releases) with `claude-code-sdk-all-<version>.jar` — the SDK plus all runtime dependencies (Jackson, Reactor, zt-exec) and a NOP SLF4J binding, ready to drop on a classpath:
 
 ```bash
-java -cp claude-code-sdk-all-1.1.2.jar:your-app.jar your.Main
+java -cp claude-code-sdk-all-1.2.0.jar:your-app.jar your.Main
 ```
 
 A `-sources.jar` is attached for IDE source attachment. See [docs/releasing.md](docs/releasing.md) for how releases are cut.
@@ -83,7 +83,7 @@ cd claude-agent-sdk-java
 ./mvnw install
 ```
 
-then depend on `org.springaicommunity:claude-code-sdk:1.1.2` from your local repository.
+then depend on `org.springaicommunity:claude-code-sdk:1.2.0` from your local repository.
 
 ## Three API Styles
 
