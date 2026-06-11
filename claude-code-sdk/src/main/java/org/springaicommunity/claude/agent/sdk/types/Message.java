@@ -16,17 +16,23 @@
 
 package org.springaicommunity.claude.agent.sdk.types;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
-
 /**
  * Base interface for all message types. Corresponds to Message union type in Python SDK.
+ *
+ * <p>
+ * Historical note: this interface used to carry Jackson polymorphic-type annotations
+ * ({@code @JsonTypeInfo}/{@code @JsonSubTypes}) registering the four CLI wire types
+ * (user/assistant/system/result). They were removed because they were never the SDK's
+ * parsing mechanism — {@link org.springaicommunity.claude.agent.sdk.parsing.MessageParser}
+ * hand-parses the CLI wire format, whose nested shape doesn't bind to these records — and
+ * the registration had gone stale: it predated {@code StreamEvent} and the replay-only
+ * types ({@code ForkMarker}, {@code HistoryEnd}, {@code RawTranscriptMessage}, the latter
+ * with a dynamic type id that NAME-based polymorphism cannot express). Serializing those
+ * as {@code Message} produced duplicate, conflicting {@code "type"} keys and output that
+ * failed to deserialize. JSON (de)serialization of this hierarchy via Jackson is
+ * therefore deliberately unsupported; use {@code MessageParser} for wire JSON.
+ * </p>
  */
-@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
-@JsonSubTypes({ @JsonSubTypes.Type(value = UserMessage.class, name = "user"),
-		@JsonSubTypes.Type(value = AssistantMessage.class, name = "assistant"),
-		@JsonSubTypes.Type(value = SystemMessage.class, name = "system"),
-		@JsonSubTypes.Type(value = ResultMessage.class, name = "result") })
 public interface Message {
 
 	/**
