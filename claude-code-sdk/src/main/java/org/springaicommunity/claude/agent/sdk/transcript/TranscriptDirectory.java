@@ -208,13 +208,37 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 			}
 		}
 
-		// Build Sessions with their fork partition.
-		List<Session> sessions = new ArrayList<>();
+		// Per-session messages and segments first: fork markers need every session's parentage.
+		Map<String, List<TranscriptEntry>> messagesBySession = new HashMap<>();
+		Map<String, List<ForkSegment>> segmentsBySession = new HashMap<>();
+		Map<String, String> parentOf = new HashMap<>(); // derived as in Session#parentSessionId
 		for (Raw r : raws) {
 			List<TranscriptEntry> messages = r.entries().stream().filter(TranscriptEntry::hasUuid).toList();
 			List<ForkSegment> segments = computeSegments(messages, uuidSessions, sessionUuids);
-			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), r.entries(), messages,
-					segments));
+			messagesBySession.put(r.sessionId(), messages);
+			segmentsBySession.put(r.sessionId(), segments);
+			parentOf.put(r.sessionId(),
+					segments.size() < 2 ? null : segments.get(segments.size() - 2).originSessionId());
+		}
+
+		// Build Sessions with their fork partition and precomputed fork markers (the sibling
+		// lists require directory-wide knowledge, so a Session can replay itself afterwards).
+		List<Session> sessions = new ArrayList<>();
+		for (Raw r : raws) {
+			List<ForkSegment> segments = segmentsBySession.get(r.sessionId());
+			List<ForkMarker> markers = new ArrayList<>();
+			for (int i = 1; i < segments.size(); i++) {
+				String parent = segments.get(i - 1).originSessionId();
+				String child = segments.get(i).originSessionId();
+				List<String> siblings = parentOf.entrySet().stream()
+						.filter(e -> parent.equals(e.getValue()) && !e.getKey().equals(child))
+						.map(Map.Entry::getKey)
+						.sorted()
+						.toList();
+				markers.add(new ForkMarker(parent, child, segments.get(i).startIndex(), siblings));
+			}
+			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), r.entries(),
+					messagesBySession.get(r.sessionId()), segments, List.copyOf(markers)));
 		}
 
 		List<ConversationFamily> families = buildFamilies(sessions);
@@ -327,14 +351,10 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	}
 
 	/**
-	 * Replays a session's full history (root through this leaf) as a stream of SDK
-	 * {@link Message}s, in a form compatible with live message handling. <b>Every</b>
-	 * transcript line is emitted, in file order: conversation lines as their parsed
-	 * {@link Message} type, and all other lines (e.g. {@code attachment},
-	 * {@code queue-operation}, {@code mode}) as a {@link RawTranscriptMessage} carrying the
-	 * raw type and JSON — so the consumer can choose to surface or hide each. A
-	 * {@link ForkMarker} is emitted at each fork boundary and a terminal {@link HistoryEnd}
-	 * signals completion.
+	 * Replays a session's full history as a stream of SDK {@link Message}s. Id-addressed
+	 * convenience that delegates to {@link Session#replay()} — see
+	 * {@link Session#replayMessages()} for the replay semantics (fork markers, raw
+	 * passthrough, terminal {@link HistoryEnd}).
 	 * @param sessionId the session to replay
 	 * @return the replayed messages as a {@link Flux} (cold; emits on subscribe)
 	 */
@@ -343,43 +363,14 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	}
 
 	/**
-	 * Eager (non-reactive) form of {@link #replay(String)}: the full replay as a list, with
-	 * {@link ForkMarker}s at fork boundaries and a trailing {@link HistoryEnd}.
+	 * Eager (non-reactive) form of {@link #replay(String)}. Id-addressed convenience that
+	 * delegates to {@link Session#replayMessages()}.
 	 * @param sessionId the session to replay
 	 * @return the ordered replay messages
 	 * @throws java.util.NoSuchElementException if no such session is loaded
 	 */
 	public List<Message> replayMessages(String sessionId) {
-		Session s = byId(sessionId).orElseThrow();
-		List<ForkSegment> segments = s.segments();
-		List<Message> out = new ArrayList<>();
-		int uuidPos = 0; // position within the uuid-bearing message list (the partition coordinate)
-		int seg = 0;
-		for (TranscriptEntry e : s.entries()) {
-			if (e.hasUuid()) {
-				// Crossing into a later segment: emit a fork marker before this message.
-				while (seg + 1 < segments.size() && uuidPos >= segments.get(seg + 1).startIndex()) {
-					seg++;
-					String parent = segments.get(seg - 1).originSessionId();
-					String child = segments.get(seg).originSessionId();
-					out.add(new ForkMarker(parent, child, segments.get(seg).startIndex(), siblingsOf(parent, child)));
-				}
-				uuidPos++;
-			}
-			// Emit EVERY line: parsed conversation message, or a raw passthrough otherwise.
-			out.add(e.hasMessage() ? e.message() : new RawTranscriptMessage(e.type(), e.uuid(), e.raw()));
-		}
-		out.add(new HistoryEnd(sessionId, s.messages().size()));
-		return out;
-	}
-
-	/** Other sessions forked from {@code parent}, excluding {@code exclude} (for nav). */
-	private List<String> siblingsOf(String parent, String exclude) {
-		return sessions.stream()
-				.filter(o -> parent.equals(o.parentSessionId()) && !o.sessionId().equals(exclude))
-				.map(Session::sessionId)
-				.sorted()
-				.toList();
+		return byId(sessionId).orElseThrow().replayMessages();
 	}
 
 	/**

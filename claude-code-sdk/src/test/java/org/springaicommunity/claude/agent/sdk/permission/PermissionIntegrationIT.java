@@ -23,7 +23,7 @@ import org.springaicommunity.claude.agent.sdk.config.PermissionMode;
 import org.springaicommunity.claude.agent.sdk.test.ClaudeCliTestBase;
 import org.springaicommunity.claude.agent.sdk.transport.StreamingTransport;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
-import org.springaicommunity.claude.agent.sdk.transport.ToolPermissionCallback;
+import org.springaicommunity.claude.agent.sdk.transport.TransportToolPermissionCallback;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
@@ -374,9 +374,9 @@ class PermissionIntegrationIT extends ClaudeCliTestBase {
 	 * permission_prompt_tool_name="stdio".
 	 */
 	@Test
-	@DisplayName("ToolPermissionCallback auto-enables permission prompt tool")
+	@DisplayName("TransportToolPermissionCallback auto-enables permission prompt tool")
 	void toolPermissionCallbackAutoEnablesPermissionPrompt() throws Exception {
-		// Given - track callback invocations via ToolPermissionCallback
+		// Given - track callback invocations via TransportToolPermissionCallback
 		List<String> callbackInvocations = new CopyOnWriteArrayList<>();
 		CountDownLatch resultLatch = new CountDownLatch(1);
 
@@ -385,10 +385,10 @@ class PermissionIntegrationIT extends ClaudeCliTestBase {
 			.model(HAIKU_MODEL)
 			.permissionMode(PermissionMode.DEFAULT)
 			.toolPermissionCallback((toolName, input, context) -> {
-				System.out.println("ToolPermissionCallback invoked for: " + toolName);
+				System.out.println("TransportToolPermissionCallback invoked for: " + toolName);
 				callbackInvocations.add(toolName);
 				return java.util.concurrent.CompletableFuture
-					.completedFuture(ToolPermissionCallback.ToolPermissionResult.allow());
+					.completedFuture(TransportToolPermissionCallback.ToolPermissionResult.allow());
 			})
 			.build();
 
@@ -420,9 +420,9 @@ class PermissionIntegrationIT extends ClaudeCliTestBase {
 			assertThat(completed).as("Should complete within timeout").isTrue();
 
 			// Verify: toolPermissionCallback was invoked (proving auto-detection worked)
-			System.out.println("ToolPermissionCallback invocations: " + callbackInvocations);
+			System.out.println("TransportToolPermissionCallback invocations: " + callbackInvocations);
 			assertThat(callbackInvocations)
-				.as("ToolPermissionCallback should have been invoked (auto-detection of --permission-prompt-tool stdio)")
+				.as("TransportToolPermissionCallback should have been invoked (auto-detection of --permission-prompt-tool stdio)")
 				.isNotEmpty();
 		});
 	}

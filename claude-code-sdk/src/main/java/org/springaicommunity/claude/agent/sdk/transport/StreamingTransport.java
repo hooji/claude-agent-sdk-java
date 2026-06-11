@@ -134,7 +134,7 @@ public class StreamingTransport implements AutoCloseable {
 	private volatile StderrHandler currentStderrHandler;
 
 	/** Tool permission callback for the current session (may be null). */
-	private volatile ToolPermissionCallback currentToolPermissionCallback;
+	private volatile TransportToolPermissionCallback currentToolPermissionCallback;
 
 	// ============================================================
 	// Scheduler Separation (from MCP SDK pattern)
@@ -1232,7 +1232,7 @@ public class StreamingTransport implements AutoCloseable {
 	 * Returns the tool permission callback for this session, if configured.
 	 * @return the callback, or null if not configured
 	 */
-	public ToolPermissionCallback getToolPermissionCallback() {
+	public TransportToolPermissionCallback getToolPermissionCallback() {
 		return currentToolPermissionCallback;
 	}
 
@@ -1250,24 +1250,24 @@ public class StreamingTransport implements AutoCloseable {
 		}
 
 		// Create context from request
-		ToolPermissionCallback.ToolPermissionContext context = ToolPermissionCallback.ToolPermissionContext
+		TransportToolPermissionCallback.ToolPermissionContext context = TransportToolPermissionCallback.ToolPermissionContext
 			.of(request.permissionSuggestions(), request.blockedPath());
 
 		try {
 			// Invoke callback (synchronously for now, could be enhanced to async)
-			ToolPermissionCallback.ToolPermissionResult result = currentToolPermissionCallback
+			TransportToolPermissionCallback.ToolPermissionResult result = currentToolPermissionCallback
 				.canUseTool(request.toolName(), request.input(), context)
 				.get(); // Block for result
 
 			// Convert result to response format
-			if (result instanceof ToolPermissionCallback.ToolPermissionResult.Allow allow) {
+			if (result instanceof TransportToolPermissionCallback.ToolPermissionResult.Allow allow) {
 				if (allow.updatedInput() != null) {
 					return ControlResponse.success(requestId,
 							Map.of("decision", "allow", "updated_input", allow.updatedInput()));
 				}
 				return ControlResponse.success(requestId, Map.of("decision", "allow"));
 			}
-			else if (result instanceof ToolPermissionCallback.ToolPermissionResult.Deny deny) {
+			else if (result instanceof TransportToolPermissionCallback.ToolPermissionResult.Deny deny) {
 				Map<String, Object> response = new java.util.HashMap<>();
 				response.put("decision", "deny");
 				response.put("reason", deny.reason());

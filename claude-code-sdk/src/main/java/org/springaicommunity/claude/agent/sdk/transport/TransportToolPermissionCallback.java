@@ -22,12 +22,21 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Callback interface for dynamic tool permission decisions. This is invoked when Claude
+ * Transport-level callback interface for dynamic tool permission decisions, configured
+ * via {@link CLIOptions.Builder#toolPermissionCallback}. This is invoked when Claude
  * wants to use a tool and needs permission validation.
  *
  * <p>
  * The callback receives the tool name, input parameters, and any permission suggestions
  * from the CLI, and returns a decision to allow, deny, or modify the tool use.
+ * </p>
+ *
+ * <p>
+ * Not to be confused with
+ * {@link org.springaicommunity.claude.agent.sdk.permission.ToolPermissionCallback}, the
+ * client-facing callback set via {@code setToolPermissionCallback(...)} on the sync and
+ * async clients. This interface was renamed from {@code ToolPermissionCallback} to
+ * resolve that name collision; this one operates at the {@link StreamingTransport} layer.
  * </p>
  *
  * <p>
@@ -37,14 +46,14 @@ import java.util.concurrent.CompletableFuture;
  * <pre>
  * {@code
  * // Allow all tools
- * ToolPermissionCallback callback = ToolPermissionCallback.allowAll();
+ * TransportToolPermissionCallback callback = TransportToolPermissionCallback.allowAll();
  *
  * // Read-only mode - only allow specific tools
- * ToolPermissionCallback readOnly = ToolPermissionCallback.allowList(
+ * TransportToolPermissionCallback readOnly = TransportToolPermissionCallback.allowList(
  *     Set.of("Read", "Glob", "Grep", "WebFetch"));
  *
  * // Custom logic
- * ToolPermissionCallback custom = (tool, input, ctx) -> {
+ * TransportToolPermissionCallback custom = (tool, input, ctx) -> {
  *     if ("Bash".equals(tool) && input.get("command").toString().contains("rm")) {
  *         return CompletableFuture.completedFuture(
  *             ToolPermissionResult.deny("Destructive commands not allowed"));
@@ -58,7 +67,7 @@ import java.util.concurrent.CompletableFuture;
  * @see ToolPermissionContext
  */
 @FunctionalInterface
-public interface ToolPermissionCallback {
+public interface TransportToolPermissionCallback {
 
 	/**
 	 * Evaluate whether a tool can be used with the given input.
@@ -74,7 +83,7 @@ public interface ToolPermissionCallback {
 	 * Creates a callback that allows all tool uses.
 	 * @return a callback that always allows
 	 */
-	static ToolPermissionCallback allowAll() {
+	static TransportToolPermissionCallback allowAll() {
 		return (tool, input, ctx) -> CompletableFuture.completedFuture(ToolPermissionResult.allow());
 	}
 
@@ -83,7 +92,7 @@ public interface ToolPermissionCallback {
 	 * @param allowedTools set of allowed tool names
 	 * @return a callback that allows only listed tools
 	 */
-	static ToolPermissionCallback allowList(Set<String> allowedTools) {
+	static TransportToolPermissionCallback allowList(Set<String> allowedTools) {
 		return (tool, input, ctx) -> {
 			if (allowedTools.contains(tool)) {
 				return CompletableFuture.completedFuture(ToolPermissionResult.allow());
@@ -97,7 +106,7 @@ public interface ToolPermissionCallback {
 	 * @param deniedTools set of denied tool names
 	 * @return a callback that denies listed tools
 	 */
-	static ToolPermissionCallback denyList(Set<String> deniedTools) {
+	static TransportToolPermissionCallback denyList(Set<String> deniedTools) {
 		return (tool, input, ctx) -> {
 			if (deniedTools.contains(tool)) {
 				return CompletableFuture.completedFuture(ToolPermissionResult.deny("Tool is denied: " + tool));
