@@ -213,7 +213,10 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>${surefireArgLine}</argLine>
+                    <!-- No explicit argLine: surefire then picks up the 'argLine' property
+                         that jacoco's prepare-agent sets, attaching the coverage agent.
+                         (The previous ${surefireArgLine} was never defined anywhere, which
+                         both broke coverage and injected an unresolvable token.) -->
                     <useFile>false</useFile>
                     <trimStackTrace>false</trimStackTrace>
                     <reportFormat>plain</reportFormat>
