@@ -1,0 +1,155 @@
+name: Bump version and release
+
+# Cuts a release by computing the next version from the most recent v* tag,
+# creating that tag on the tip of the default branch, and triggering the
+# Tag Release workflow to build and publish it.
+#
+# Triggers:
+#   * Automatically when a pull request is merged into main (default: patch
+#     bump). Add a `release:minor` / `release:major` label to the PR to bump
+#     that part instead, or `release:skip` (or "[skip release]" in the PR
+#     title) to merge without cutting a release.
+#   * Manually via the Actions tab (workflow_dispatch) — pick patch/minor/major
+#     or type an explicit version.
+#
+# Why it dispatches Tag Release rather than relying on the tag push: a tag
+# pushed by a job using the automatic GITHUB_TOKEN does NOT start another
+# workflow (GitHub blocks that to avoid recursive runs). workflow_dispatch is
+# the documented exception, so we create the tag and then explicitly dispatch
+# Tag Release with it — no Personal Access Token required.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Which part of the version to increment'
+        type: choice
+        options: [patch, minor, major]
+        default: patch
+      version:
+        description: 'Explicit version to release (e.g. 1.2.0), overrides "bump" if set'
+        type: string
+        required: false
+        default: ''
+
+# Only let one bump run at a time so concurrent merges can't race to the same
+# tag; they queue and each recomputes the next version in turn.
+concurrency:
+  group: version-bump
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # create and push the new tag
+  actions: write    # dispatch the Tag Release workflow
+
+jobs:
+  bump-and-release:
+    runs-on: ubuntu-latest
+    # Manual runs always proceed. PR runs proceed only when the PR was actually
+    # merged (not just closed) and isn't opted out of releasing.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       !contains(github.event.pull_request.labels.*.name, 'release:skip') &&
+       !contains(github.event.pull_request.title, '[skip release]'))
+    steps:
+      - name: Check out default branch tip
+        uses: actions/checkout@v4
+        with:
+          # Always release the latest commit on the default branch (i.e. the
+          # merged result), regardless of which ref triggered the run.
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Compute next version
+        id: ver
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_BUMP: ${{ inputs.bump }}
+          INPUT_VERSION: ${{ inputs.version }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+
+          # Decide the bump level (and any explicit version) from the trigger.
+          EXPLICIT=""
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            BUMP="${INPUT_BUMP:-patch}"
+            EXPLICIT="${INPUT_VERSION}"
+          else
+            # Merged PR: default patch, overridable by label.
+            case ",${PR_LABELS}," in
+              *,release:major,*) BUMP=major ;;
+              *,release:minor,*) BUMP=minor ;;
+              *)                 BUMP=patch ;;
+            esac
+          fi
+          echo "Trigger=${EVENT_NAME} bump=${BUMP} explicit='${EXPLICIT}'"
+
+          LATEST="$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n1)"
+          echo "Latest version tag: ${LATEST:-<none>}"
+
+          if [ -n "${EXPLICIT}" ]; then
+            NEW="${EXPLICIT#v}"
+          else
+            BASE="${LATEST#v}"
+            BASE="${BASE:-0.0.0}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "${BASE}"
+            MAJOR="${MAJOR:-0}"; MINOR="${MINOR:-0}"; PATCH="${PATCH:-0}"
+            # Drop any pre-release/build suffix on the patch component.
+            PATCH="${PATCH%%[!0-9]*}"; PATCH="${PATCH:-0}"
+            case "${BUMP}" in
+              major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+              *)     PATCH=$((PATCH + 1)) ;;
+            esac
+            NEW="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          NEW_TAG="v${NEW}"
+          if git rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null 2>&1; then
+            echo "::error::Tag ${NEW_TAG} already exists. Pick a different bump/version."
+            exit 1
+          fi
+
+          echo "New version: ${NEW} (tag ${NEW_TAG})"
+          echo "version=${NEW}" >> "$GITHUB_OUTPUT"
+          echo "tag=${NEW_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          NEW_TAG: ${{ steps.ver.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${NEW_TAG}" -m "Claude Agent SDK Java ${NEW_TAG}"
+          git push origin "refs/tags/${NEW_TAG}"
+
+      - name: Trigger release build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_TAG: ${{ steps.ver.outputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --ref "${DEFAULT_BRANCH}" -f tag="${NEW_TAG}"
+
+      - name: Summary
+        env:
+          NEW_TAG: ${{ steps.ver.outputs.tag }}
+          NEW_VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          {
+            echo "### Release kicked off :rocket:"
+            echo ""
+            echo "- **Trigger:** \`${{ github.event_name }}\`"
+            echo "- **Version:** \`${NEW_VERSION}\`"
+            echo "- **Tag:** \`${NEW_TAG}\` (on \`${{ github.event.repository.default_branch }}\` tip)"
+            echo "- **Release workflow:** dispatched — see the *Tag Release* workflow runs for build progress."
+          } >> "$GITHUB_STEP_SUMMARY"

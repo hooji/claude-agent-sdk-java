@@ -44,6 +44,18 @@ TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory(Path.of("/User
 `forWorkingDirectory` returns an **empty** `TranscriptDirectory` (no sessions) when the
 directory has no transcripts yet — it does not throw.
 
+To enumerate **every** session on the machine rather than a single working directory,
+`TranscriptDirectory.allUnder()` (or `allUnder(projectsRoot)`) returns one loaded
+`TranscriptDirectory` per non-empty transcript folder under the projects root:
+
+```java
+for (TranscriptDirectory dir : TranscriptDirectory.allUnder()) {
+    for (Session s : dir.mainSessions()) {
+        // s.sessionId(), s.workingDirectory(), s.messages().size(), …
+    }
+}
+```
+
 ## Reading history from a client
 
 Both `ClaudeSyncClient` and `ClaudeAsyncClient` implement `TranscriptAware`:
@@ -90,8 +102,9 @@ Two things to keep in mind:
 `TranscriptDirectory.load(Path)` (or `forWorkingDirectory`) parses every `*.jsonl` file
 into:
 
-- **`Session`** — one transcript file: `sessionId()`, `file()`, `agentSession()` (is it an
-  `agent-*` sidechain?), `entries()`, `messages()`, and the fork partition `segments()`.
+- **`Session`** — one transcript file: `sessionId()`, `file()`, `workingDirectory()` (recovered
+  from the transcript's `cwd`), `agentSession()` (is it an `agent-*` sidechain?), `entries()`,
+  `messages()`, and the fork partition `segments()`.
 - **`TranscriptEntry`** — one line of the file, kept **losslessly**: the structural fields
   (`uuid`, `parentUuid`, `type`, `timestamp`, …) are lifted out, the parsed SDK `Message`
   is attached when the line is a conversation message, and the complete original JSON is
@@ -180,6 +193,64 @@ ClaudeSyncClient resumed = ClaudeClient.sync(
 The original and the clone then move forward on fully independent timelines. For this to
 stay consistent, create clones through this API and resume them in their target directory
 — don't fork a clone again via the CLI.
+
+## Session archives
+
+`SessionClone` makes a live sibling copy; `SessionArchive` instead packages a session as a
+single portable file you can store, copy, and move around — and, unlike a clone, it defaults
+to **keeping the original session id** on restore, so the restored copy *is* the same session.
+
+`SessionArchive.create(sessionId, workingDir, targetArchive, metadata)` writes a ZIP (no
+external dependency) containing **only the specified session** — never the siblings that share
+its transcript folder:
+
+```
+manifest.json                  provenance + your name/description
+attributes.ser                 the Map<String,Serializable> attributes (Java-serialized; omitted if empty)
+transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
+transcript/<sessionId>/...     externalized tool-result sidecar files, if any
+workdir/...                    the entire working-directory tree
+```
+
+```java
+Map<String, Serializable> attrs = Map.of(
+        "promptTemplate", "Summarize {{document}} for {{audience}}",
+        "argSpec", new ArrayList<>(List.of("document", "audience")));
+SessionArchive.Metadata meta = new SessionArchive.Metadata("Doc summarizer", "Primed and ready", attrs);
+
+Path file = SessionArchive.create(sessionId, Path.of("/work/original"),
+        Path.of("/backups/summarizer.ccsession.zip"), meta);
+```
+
+Restore inflates the working tree into a fresh directory and re-homes the transcript, rewriting
+every path reference from the archived working directory to the new one:
+
+```java
+SessionArchive.RestoreResult r = SessionArchive.restore(file, Path.of("/work/restored"));
+// r.sessionId() == the archived id (keep-id default).
+// restore(file, dir, true) instead mints a new id — a fork-on-restore.
+
+ClaudeSyncClient resumed = ClaudeClient.sync(
+        CLIOptions.builder().resume(r.sessionId()).build())
+    .workingDirectory(r.workingDirectory())
+    .build();
+```
+
+- **Metadata** is `name`, `description`, and a `Map<String, Serializable> attributes` that can
+  hold arbitrary live Java objects — e.g. a prompt template plus an argument spec — turning a
+  saved session into a primed, packaged "AI application" capsule.
+- **`readManifest(file)`** returns name/description/provenance (id, original working dir,
+  created-at, message count) **without** extracting the archive or deserializing attributes —
+  cheap enough to list a folder of backups. **`readAttributes(file)`** deserializes the
+  attribute map on demand (so it needs the attribute classes on the classpath).
+- The working tree is captured **in full** (no excludes), so an archive may be large and may
+  include secrets (`.env`, `.git`, …) in one easily-shared file — handle accordingly. Attributes
+  use Java serialization, so treat `readAttributes` on an untrusted archive with the usual
+  deserialization caution.
+
+**Conveniences.** From a loaded `Session`, `session.archiveTo(file, metadata)` infers the working
+directory (from the transcript's `cwd`) and projects root for you; from a live client,
+`client.archiveSession(file, metadata)` archives the current session in one call.
 
 ## Caveats
 

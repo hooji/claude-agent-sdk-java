@@ -16,8 +16,12 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+
+import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * One loaded session transcript file, mirroring its on-disk content plus the recovered fork
@@ -63,5 +67,46 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	 */
 	public int forkPointIndex() {
 		return isFork() ? segments.get(segments.size() - 1).startIndex() : -1;
+	}
+
+	/**
+	 * The working directory this session ran in, recovered from the {@code cwd} stamped on its
+	 * transcript entries. Unlike the storage folder name — which sanitizes the path
+	 * irreversibly — this is the real directory the user ran Claude in.
+	 * @return the working directory, or empty if no {@code cwd} was recorded
+	 */
+	public Optional<Path> workingDirectory() {
+		for (TranscriptEntry e : entries) {
+			JsonNode cwd = e.raw().get("cwd");
+			if (cwd != null && cwd.isTextual() && !cwd.asText().isBlank()) {
+				return Optional.of(Path.of(cwd.asText()));
+			}
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * Archives this session — its transcript and its entire working directory tree — to
+	 * {@code targetArchive} as a single portable file (see {@link SessionArchive}). The working
+	 * directory is recovered via {@link #workingDirectory()} and the projects root from this
+	 * session's {@link #file()}.
+	 * @param targetArchive the archive file to write
+	 * @param metadata name/description/attributes to embed (may be {@code null})
+	 * @return the archive file written
+	 * @throws IOException if the session's files can't be read or the archive can't be written
+	 * @throws IllegalStateException if the working directory can't be inferred (no {@code cwd} in
+	 * the transcript) — call {@link SessionArchive#create} with an explicit directory instead
+	 */
+	public Path archiveTo(Path targetArchive, SessionArchive.Metadata metadata) throws IOException {
+		Path workingDir = workingDirectory().orElseThrow(() -> new IllegalStateException(
+				"Cannot infer the working directory for session " + sessionId
+						+ " (no cwd recorded in its transcript); use SessionArchive.create(sessionId, "
+						+ "workingDir, ...) with an explicit directory"));
+		Path folder = file.getParent();
+		Path projectsRoot = folder == null ? null : folder.getParent();
+		if (projectsRoot == null) {
+			throw new IllegalStateException("Cannot derive the projects root from transcript path " + file);
+		}
+		return SessionArchive.create(sessionId, workingDir, targetArchive, metadata, projectsRoot);
 	}
 }

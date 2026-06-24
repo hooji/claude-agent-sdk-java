@@ -86,6 +86,38 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	}
 
 	/**
+	 * Loads the transcripts for <em>every</em> working directory recorded under {@code
+	 * projectsRoot} — i.e. every Claude Code session on this machine — returning one
+	 * {@link TranscriptDirectory} per working directory (folders with no transcripts are
+	 * skipped). The global counterpart to {@link #forWorkingDirectory(Path)}, which scopes to a
+	 * single working directory.
+	 * @param projectsRoot the projects root holding the per-working-directory transcript folders
+	 * @return one loaded directory per non-empty working-directory folder, ordered by folder name
+	 */
+	public static List<TranscriptDirectory> allUnder(Path projectsRoot) throws IOException {
+		if (!Files.isDirectory(projectsRoot)) {
+			return List.of();
+		}
+		List<Path> dirs;
+		try (Stream<Path> s = Files.list(projectsRoot)) {
+			dirs = s.filter(Files::isDirectory).sorted().toList();
+		}
+		List<TranscriptDirectory> out = new ArrayList<>();
+		for (Path d : dirs) {
+			TranscriptDirectory loaded = load(d);
+			if (!loaded.sessions().isEmpty()) {
+				out.add(loaded);
+			}
+		}
+		return List.copyOf(out);
+	}
+
+	/** {@link #allUnder(Path)} using the default {@link #projectsRoot()}. */
+	public static List<TranscriptDirectory> allUnder() throws IOException {
+		return allUnder(projectsRoot());
+	}
+
+	/**
 	 * The Claude Code projects root holding all transcript folders:
 	 * {@code $CLAUDE_CONFIG_DIR/projects} when the {@code CLAUDE_CONFIG_DIR} environment
 	 * variable (or the {@code claude.config.dir} system property, which takes precedence)

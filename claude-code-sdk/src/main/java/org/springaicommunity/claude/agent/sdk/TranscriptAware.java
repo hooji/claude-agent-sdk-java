@@ -21,6 +21,7 @@ import java.nio.file.Path;
 
 import org.springaicommunity.claude.agent.sdk.exceptions.ClaudeSDKException;
 import org.springaicommunity.claude.agent.sdk.transcript.Session;
+import org.springaicommunity.claude.agent.sdk.transcript.SessionArchive;
 import org.springaicommunity.claude.agent.sdk.transcript.TranscriptDirectory;
 
 /**
@@ -120,6 +121,46 @@ public interface TranscriptAware {
 			}
 		}
 		return transcripts.mostRecentSession();
+	}
+
+	/**
+	 * Archives one session of this client's working directory to a single portable file (see
+	 * {@link SessionArchive}). Uses this client's configured {@link #getWorkingDirectory()} (the
+	 * JVM's current directory when none is set) and the default Claude projects root.
+	 * @param sessionId the session to archive
+	 * @param targetArchive the archive file to write
+	 * @param metadata name/description/attributes to embed (may be {@code null})
+	 * @return the archive file written
+	 * @throws ClaudeSDKException if the session's files can't be read or the archive can't be
+	 * written
+	 */
+	default Path archiveSession(String sessionId, Path targetArchive, SessionArchive.Metadata metadata) {
+		Path workingDirectory = getWorkingDirectory();
+		if (workingDirectory == null) {
+			workingDirectory = Path.of(System.getProperty("user.dir"));
+		}
+		try {
+			return SessionArchive.create(sessionId, workingDirectory, targetArchive, metadata);
+		}
+		catch (IOException e) {
+			throw new ClaudeSDKException("Failed to archive session " + sessionId + " to " + targetArchive, e);
+		}
+	}
+
+	/**
+	 * Archives this client's current session (see {@link #getSession()}) to a single portable
+	 * file.
+	 * @param targetArchive the archive file to write
+	 * @param metadata name/description/attributes to embed (may be {@code null})
+	 * @return the archive file written
+	 * @throws ClaudeSDKException if there is no session yet, or the archive can't be written
+	 */
+	default Path archiveSession(Path targetArchive, SessionArchive.Metadata metadata) {
+		Session session = getSession();
+		if (session == null) {
+			throw new ClaudeSDKException("No session to archive yet for working directory " + getWorkingDirectory());
+		}
+		return archiveSession(session.sessionId(), targetArchive, metadata);
 	}
 
 }
