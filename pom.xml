@@ -6,7 +6,7 @@
 
     <groupId>org.springaicommunity</groupId>
     <artifactId>claude-agent-sdk-parent</artifactId>
-    <version>1.1.2</version>
+    <version>${revision}</version>
 
     <name>Claude Agent SDK Parent</name>
 
@@ -48,6 +48,13 @@
     </ciManagement>
 
     <properties>
+        <!-- CI-friendly version. The real value comes from the release tag via
+             -Drevision=<version> (see .github/workflows/release.yml); this
+             default only labels local dev builds. flatten-maven-plugin resolves
+             ${revision} in the installed POMs so consumers never see the
+             placeholder. -->
+        <revision>1.1.2</revision>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -324,47 +331,6 @@
                                 <goals>
                                     <goal>aggregate</goal>
                                 </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
-            <id>release</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.sonatype.central</groupId>
-                        <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.9.0</version>
-                        <extensions>true</extensions>
-                        <configuration>
-                            <publishingServerId>central</publishingServerId>
-                            <excludeArtifacts>
-                                claude-agent-sdk-parent,examples-parent,hello-world
-                            </excludeArtifacts>
-                            <autoPublish>true</autoPublish>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.2.7</version>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                                <configuration>
-                                    <gpgArguments>
-                                        <arg>--pinentry-mode</arg>
-                                        <arg>loopback</arg>
-                                    </gpgArguments>
-                                    <passphrase>${env.MAVEN_GPG_PASSPHRASE}</passphrase>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

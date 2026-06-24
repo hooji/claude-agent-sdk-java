@@ -45,15 +45,13 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "Building release ${TAG} (version ${TAG#v})"
 
-      - name: Set Maven version to ${{ steps.ver.outputs.version }}
-        run: |
-          ./mvnw -B -ntp versions:set -DnewVersion=${{ steps.ver.outputs.version }} -DgenerateBackupPoms=false
-          (cd fatjar && ../mvnw -B -ntp versions:set -DnewVersion=${{ steps.ver.outputs.version }} -DgenerateBackupPoms=false)
-
       - name: Build SDK and fat jar
+        # The release version comes entirely from the tag via the CI-friendly
+        # -Drevision override; no POM mutation needed. flatten-maven-plugin
+        # resolves ${revision} in the installed POMs.
         run: |
-          ./mvnw -B -ntp -pl claude-code-sdk -am -DskipTests install
-          (cd fatjar && ../mvnw -B -ntp -DskipTests package)
+          ./mvnw -B -ntp -pl claude-code-sdk -am -DskipTests -Drevision=${{ steps.ver.outputs.version }} install
+          (cd fatjar && ../mvnw -B -ntp -DskipTests -Drevision=${{ steps.ver.outputs.version }} package)
 
       - name: Stage release artifacts
         id: stage
