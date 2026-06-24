@@ -181,6 +181,60 @@ The original and the clone then move forward on fully independent timelines. For
 stay consistent, create clones through this API and resume them in their target directory
 — don't fork a clone again via the CLI.
 
+## Session archives
+
+`SessionClone` makes a live sibling copy; `SessionArchive` instead packages a session as a
+single portable file you can store, copy, and move around — and, unlike a clone, it defaults
+to **keeping the original session id** on restore, so the restored copy *is* the same session.
+
+`SessionArchive.create(sessionId, workingDir, targetArchive, metadata)` writes a ZIP (no
+external dependency) containing **only the specified session** — never the siblings that share
+its transcript folder:
+
+```
+manifest.json                  provenance + your name/description
+attributes.ser                 the Map<String,Serializable> attributes (Java-serialized; omitted if empty)
+transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
+transcript/<sessionId>/...     externalized tool-result sidecar files, if any
+workdir/...                    the entire working-directory tree
+```
+
+```java
+Map<String, Serializable> attrs = Map.of(
+        "promptTemplate", "Summarize {{document}} for {{audience}}",
+        "argSpec", new ArrayList<>(List.of("document", "audience")));
+SessionArchive.Metadata meta = new SessionArchive.Metadata("Doc summarizer", "Primed and ready", attrs);
+
+Path file = SessionArchive.create(sessionId, Path.of("/work/original"),
+        Path.of("/backups/summarizer.ccsession.zip"), meta);
+```
+
+Restore inflates the working tree into a fresh directory and re-homes the transcript, rewriting
+every path reference from the archived working directory to the new one:
+
+```java
+SessionArchive.RestoreResult r = SessionArchive.restore(file, Path.of("/work/restored"));
+// r.sessionId() == the archived id (keep-id default).
+// restore(file, dir, true) instead mints a new id — a fork-on-restore.
+
+ClaudeSyncClient resumed = ClaudeClient.sync(
+        CLIOptions.builder().resume(r.sessionId()).build())
+    .workingDirectory(r.workingDirectory())
+    .build();
+```
+
+- **Metadata** is `name`, `description`, and a `Map<String, Serializable> attributes` that can
+  hold arbitrary live Java objects — e.g. a prompt template plus an argument spec — turning a
+  saved session into a primed, packaged "AI application" capsule.
+- **`readManifest(file)`** returns name/description/provenance (id, original working dir,
+  created-at, message count) **without** extracting the archive or deserializing attributes —
+  cheap enough to list a folder of backups. **`readAttributes(file)`** deserializes the
+  attribute map on demand (so it needs the attribute classes on the classpath).
+- The working tree is captured **in full** (no excludes), so an archive may be large and may
+  include secrets (`.env`, `.git`, …) in one easily-shared file — handle accordingly. Attributes
+  use Java serialization, so treat `readAttributes` on an untrusted archive with the usual
+  deserialization caution.
+
 ## Caveats
 
 - **Local disk only.** These APIs read the transcripts of the machine the SDK runs on. If
