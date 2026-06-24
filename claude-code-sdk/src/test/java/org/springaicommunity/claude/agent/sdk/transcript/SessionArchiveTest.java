@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springaicommunity.claude.agent.sdk.TranscriptAware;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,8 +40,13 @@ class SessionArchiveTest {
 
 	private final String sid = "11111111-1111-1111-1111-111111111111";
 
-	/** Builds a fake working tree + transcript (with a sidecar tool-result) and returns the source dir. */
+	/** Builds a fake working tree + transcript (with a sidecar tool-result) for the default id. */
 	private void seedSession(Path source, Path projects) throws Exception {
+		seedSession(source, projects, sid);
+	}
+
+	/** As {@link #seedSession(Path, Path)} but for an explicit {@code sessionId}. */
+	private void seedSession(Path source, Path projects, String sessionId) throws Exception {
 		Files.createDirectories(source.resolve("src"));
 		Files.writeString(source.resolve("src/Foo.java"), "class Foo {}");
 		String srcReal = source.toRealPath().toString();
@@ -49,22 +55,22 @@ class SessionArchiveTest {
 		Files.createDirectories(srcProjDir);
 		ObjectNode l1 = mapper.createObjectNode();
 		l1.put("type", "user");
-		l1.put("sessionId", sid);
+		l1.put("sessionId", sessionId);
 		l1.put("cwd", srcReal);
 		l1.put("uuid", "u1");
 		l1.putObject("message").put("role", "user").put("content", "hi");
 		ObjectNode l2 = mapper.createObjectNode();
 		l2.put("type", "assistant");
-		l2.put("sessionId", sid);
+		l2.put("sessionId", sessionId);
 		l2.put("cwd", srcReal);
 		l2.put("uuid", "u2");
 		l2.putObject("toolUseResult").put("filePath", srcReal + "/src/Foo.java");
-		Files.write(srcProjDir.resolve(sid + ".jsonl"),
+		Files.write(srcProjDir.resolve(sessionId + ".jsonl"),
 				List.of(mapper.writeValueAsString(l1), mapper.writeValueAsString(l2)));
 
 		// an externalized tool-result sidecar file
-		Files.createDirectories(srcProjDir.resolve(sid));
-		Files.writeString(srcProjDir.resolve(sid).resolve("big-result.txt"), "lots of output");
+		Files.createDirectories(srcProjDir.resolve(sessionId));
+		Files.writeString(srcProjDir.resolve(sessionId).resolve("big-result.txt"), "lots of output");
 	}
 
 	@Test
@@ -171,6 +177,84 @@ class SessionArchiveTest {
 		assertThatThrownBy(() -> SessionArchive.restore(archive, target, false, projects))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("must be empty");
+	}
+
+	@Test
+	void archivesViaSessionConvenience(@TempDir Path source, @TempDir Path projects, @TempDir Path tmp)
+			throws Exception {
+		seedSession(source, projects);
+		Session session = TranscriptDirectory.forWorkingDirectory(source, projects).byId(sid).orElseThrow();
+
+		// The working directory is recovered from the transcript's cwd.
+		assertThat(session.workingDirectory()).contains(source.toRealPath());
+
+		Path archive = tmp.resolve("via-session.zip");
+		session.archiveTo(archive, SessionArchive.Metadata.of("S", "via session"));
+		assertThat(SessionArchive.readManifest(archive).sessionId()).isEqualTo(sid);
+
+		Path target = tmp.resolve("restored");
+		SessionArchive.RestoreResult r = SessionArchive.restore(archive, target, false, projects);
+		assertThat(r.sessionId()).isEqualTo(sid);
+		assertThat(target.resolve("src/Foo.java")).exists();
+	}
+
+	@Test
+	void discoversEverySessionUnderTheProjectsRoot(@TempDir Path sourceA, @TempDir Path sourceB,
+			@TempDir Path projects) throws Exception {
+		String idB = "22222222-2222-2222-2222-222222222222";
+		seedSession(sourceA, projects, sid);
+		seedSession(sourceB, projects, idB);
+
+		List<TranscriptDirectory> all = TranscriptDirectory.allUnder(projects);
+
+		assertThat(all).hasSize(2);
+		List<String> ids = all.stream()
+			.flatMap(d -> d.sessions().stream())
+			.map(Session::sessionId)
+			.sorted()
+			.toList();
+		assertThat(ids).containsExactly(sid, idB);
+	}
+
+	@Test
+	void clientArchivesItsCurrentSession(@TempDir Path source, @TempDir Path config, @TempDir Path tmp)
+			throws Exception {
+		// archiveSession() resolves against the default projects root, so point it at a temp one.
+		Path projects = config.resolve("projects");
+		seedSession(source, projects);
+
+		String prev = System.getProperty("claude.config.dir");
+		System.setProperty("claude.config.dir", config.toString());
+		try {
+			TranscriptAware client = new TranscriptAware() {
+				@Override
+				public Path getWorkingDirectory() {
+					return source;
+				}
+
+				@Override
+				public String getCurrentSessionId() {
+					return sid;
+				}
+			};
+
+			Path archive = client.archiveSession(tmp.resolve("client.zip"),
+					SessionArchive.Metadata.of("client", "now"));
+
+			assertThat(archive).exists();
+			SessionArchive.Manifest m = SessionArchive.readManifest(archive);
+			assertThat(m.sessionId()).isEqualTo(sid);
+			assertThat(m.originalWorkingDir()).isEqualTo(source.toRealPath().toString());
+			assertThat(m.name()).isEqualTo("client");
+		}
+		finally {
+			if (prev == null) {
+				System.clearProperty("claude.config.dir");
+			}
+			else {
+				System.setProperty("claude.config.dir", prev);
+			}
+		}
 	}
 
 }

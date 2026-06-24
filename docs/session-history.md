@@ -44,6 +44,18 @@ TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory(Path.of("/User
 `forWorkingDirectory` returns an **empty** `TranscriptDirectory` (no sessions) when the
 directory has no transcripts yet — it does not throw.
 
+To enumerate **every** session on the machine rather than a single working directory,
+`TranscriptDirectory.allUnder()` (or `allUnder(projectsRoot)`) returns one loaded
+`TranscriptDirectory` per non-empty transcript folder under the projects root:
+
+```java
+for (TranscriptDirectory dir : TranscriptDirectory.allUnder()) {
+    for (Session s : dir.mainSessions()) {
+        // s.sessionId(), s.workingDirectory(), s.messages().size(), …
+    }
+}
+```
+
 ## Reading history from a client
 
 Both `ClaudeSyncClient` and `ClaudeAsyncClient` implement `TranscriptAware`:
@@ -90,8 +102,9 @@ Two things to keep in mind:
 `TranscriptDirectory.load(Path)` (or `forWorkingDirectory`) parses every `*.jsonl` file
 into:
 
-- **`Session`** — one transcript file: `sessionId()`, `file()`, `agentSession()` (is it an
-  `agent-*` sidechain?), `entries()`, `messages()`, and the fork partition `segments()`.
+- **`Session`** — one transcript file: `sessionId()`, `file()`, `workingDirectory()` (recovered
+  from the transcript's `cwd`), `agentSession()` (is it an `agent-*` sidechain?), `entries()`,
+  `messages()`, and the fork partition `segments()`.
 - **`TranscriptEntry`** — one line of the file, kept **losslessly**: the structural fields
   (`uuid`, `parentUuid`, `type`, `timestamp`, …) are lifted out, the parsed SDK `Message`
   is attached when the line is a conversation message, and the complete original JSON is
@@ -234,6 +247,10 @@ ClaudeSyncClient resumed = ClaudeClient.sync(
   include secrets (`.env`, `.git`, …) in one easily-shared file — handle accordingly. Attributes
   use Java serialization, so treat `readAttributes` on an untrusted archive with the usual
   deserialization caution.
+
+**Conveniences.** From a loaded `Session`, `session.archiveTo(file, metadata)` infers the working
+directory (from the transcript's `cwd`) and projects root for you; from a live client,
+`client.archiveSession(file, metadata)` archives the current session in one call.
 
 ## Caveats
 
