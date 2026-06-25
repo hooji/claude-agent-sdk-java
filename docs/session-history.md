@@ -16,10 +16,14 @@ Transcripts live under a **projects root**, one folder per working directory:
 ~/.claude/projects/
 └── -Users-nat-myproject/                  ← one folder per working directory
     ├── 4b6f429e-....jsonl                 ← one file per session (named by session id)
+    ├── 4b6f429e-....meta                  ← SDK session metadata sidecar (optional; written by this SDK)
     ├── 29efebea-....jsonl
     ├── agent-3f72c1d0-....jsonl           ← sub-agent sidechain sessions
     └── 4b6f429e-.../                      ← externalized tool results (optional)
 ```
+
+The `.meta` sidecar is an **SDK convention**, not something Claude Code reads or writes — see
+[Session metadata](#session-metadata). The CLI ignores it and leaves it untouched.
 
 - The projects root is `~/.claude/projects`, or `$CLAUDE_CONFIG_DIR/projects` when the
   `CLAUDE_CONFIG_DIR` environment variable is set. The SDK honors both (plus a
@@ -117,6 +121,67 @@ tool file operations — `filePath`/`filename`/`file_path` fields anywhere in it
 Claude Code externalizes file content rather than inlining it, so this gives you paths to
 read bytes from disk without them ever being held in the transcript.
 
+## Session metadata
+
+Every `Session` carries a `Map<String, Serializable> metaData` — arbitrary SDK-managed metadata
+associated with that session, kept in a `<sessionId>.meta` sidecar next to the transcript. Claude
+Code itself is unaware of these files; only this SDK reads and writes them (the loader looks at
+`*.jsonl` only, so `.meta` files are left undisturbed).
+
+On load, the sidecar is deserialized into `metaData`; when there is no sidecar the field is an
+empty (mutable, insertion-ordered) `LinkedHashMap`. There is no separate name/description — store
+whatever you need as ordinary keys:
+
+```java
+Session s = client.getSession();
+
+s.putMetaData("title", "Doc summarizer");
+s.putMetaData("promptTemplate", "Summarize {{document}} for {{audience}}");
+s.putMetaData("argSpec", new ArrayList<>(List.of("document", "audience")));
+
+s.removeMetaData("title");
+```
+
+- **Always mutate through `putMetaData` / `removeMetaData`.** They update the in-memory map *and*
+  immediately persist the `.meta` file, keeping the two in sync. (`writeMetaData()` is also exposed
+  for the rare case where you mutate the map by other means and want to flush it.)
+- Values must be `Serializable` and are stored with Java serialization, so reading them back needs
+  the value classes on the classpath. Insertion order is preserved across a round trip.
+- `Session` results are **point-in-time snapshots** (see above), so a `Session` is a *held*
+  handle: mutate the same instance you intend to persist. Mutating one `getSession()` result and
+  then writing a *different* one will not carry your change.
+- Because `metaData` is a live mutable map, do not use a `Session` as a hash-map key or set element.
+
+## Lightweight scanning (session browser)
+
+To enumerate sessions cheaply — e.g. to render a picker — pass `dontLoadTranscripts = true` to any
+`load` / `forWorkingDirectory` / `allUnder` variant. Each `Session` is then populated only with its
+identity and metadata (`sessionId`, `file`, `agentSession`, `agentId`, `metaData`); `entries`,
+`messages`, `segments`, and `forkMarkers` are left empty and no fork analysis runs (so `families()`
+is empty). This skips parsing every transcript line in the directory.
+
+```java
+for (TranscriptDirectory dir : TranscriptDirectory.allUnder(true)) {   // metadata-only scan
+    for (Session s : dir.sessions()) {
+        String title = (String) s.metaData().getOrDefault("title", s.sessionId());
+        // show `title` in a list; load the chosen session fully before working on it
+    }
+}
+
+// Full load of the one the user picks — now entries/replay/archive are available:
+Session chosen = TranscriptDirectory.forWorkingDirectory(workingDir).byId(pickedId).orElseThrow();
+```
+
+Sort the scan by recency for a most-recently-used list: `Session.lastUpdateTime()` returns the
+later of `lastTranscriptUpdateTime()` and `lastMetaDataUpdateTime()` (the `.jsonl` and `.meta`
+file mtimes); `metaFilePath()` exposes the sidecar path itself. These read file times only, so
+they work on a lightweight `Session`.
+
+A lightweight `Session` is for browsing and metadata only: `replay()`, `archiveTo()`, `isFork()`,
+`workingDirectory()` and the like depend on the transcript, so load the session fully (the default,
+`dontLoadTranscripts = false`) before using them. Metadata mutation (`putMetaData` etc.) *does*
+work on a lightweight session, since it needs only `file` and `metaData`.
+
 ## Fork recovery
 
 `claude --fork-session` branches a conversation: the child session file gets a **copy of
@@ -202,35 +267,39 @@ stay consistent, create clones through this API and resume them in their target 
 single portable file you can store, copy, and move around — and, unlike a clone, it defaults
 to **keeping the original session id** on restore, so the restored copy *is* the same session.
 
-`SessionArchive.create(sessionId, workingDir, targetArchive, metadata)` writes a ZIP (no
-external dependency) containing **only the specified session** — never the siblings that share
-its transcript folder:
+`SessionArchive.create(sessionId, workingDir, targetArchive)` writes a ZIP (no external
+dependency) containing **only the specified session** — never the siblings that share its
+transcript folder:
 
 ```
-manifest.json                  provenance + your name/description
-attributes.ser                 the Map<String,Serializable> attributes (Java-serialized; omitted if empty)
+manifest.json                  provenance (see SessionArchive.Manifest)
+metadata.ser                   the session's .meta bytes (Java-serialized map; omitted if no .meta)
 transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
 transcript/<sessionId>/...     externalized tool-result sidecar files, if any
 workdir/...                    the entire working-directory tree
 ```
 
-```java
-Map<String, Serializable> attrs = Map.of(
-        "promptTemplate", "Summarize {{document}} for {{audience}}",
-        "argSpec", new ArrayList<>(List.of("document", "audience")));
-SessionArchive.Metadata meta = new SessionArchive.Metadata("Doc summarizer", "Primed and ready", attrs);
+The archive's metadata is simply the session's [`.meta` sidecar](#session-metadata) — set it up
+front through the session, then archive:
 
-Path file = SessionArchive.create(sessionId, Path.of("/work/original"),
-        Path.of("/backups/summarizer.ccsession.zip"), meta);
+```java
+Session s = client.getSession();
+s.putMetaData("title", "Doc summarizer");
+s.putMetaData("promptTemplate", "Summarize {{document}} for {{audience}}");
+
+Path file = SessionArchive.create(s.sessionId(), Path.of("/work/original"),
+        Path.of("/backups/summarizer.ccsession.zip"));
 ```
 
-Restore inflates the working tree into a fresh directory and re-homes the transcript, rewriting
-every path reference from the archived working directory to the new one:
+Restore inflates the working tree into a fresh directory, re-homes the transcript (rewriting every
+path reference from the archived working directory to the new one), and materializes the
+`<sessionId>.meta` sidecar so the restored session keeps its metadata:
 
 ```java
 SessionArchive.RestoreResult r = SessionArchive.restore(file, Path.of("/work/restored"));
 // r.sessionId() == the archived id (keep-id default).
-// restore(file, dir, true) instead mints a new id — a fork-on-restore.
+// restore(file, dir, true) instead mints a new id — a fork-on-restore — and the
+// .meta file is renamed to match the new id.
 
 ClaudeSyncClient resumed = ClaudeClient.sync(
         CLIOptions.builder().resume(r.sessionId()).build())
@@ -238,21 +307,22 @@ ClaudeSyncClient resumed = ClaudeClient.sync(
     .build();
 ```
 
-- **Metadata** is `name`, `description`, and a `Map<String, Serializable> attributes` that can
-  hold arbitrary live Java objects — e.g. a prompt template plus an argument spec — turning a
-  saved session into a primed, packaged "AI application" capsule.
-- **`readManifest(file)`** returns name/description/provenance (id, original working dir,
-  created-at, message count) **without** extracting the archive or deserializing attributes —
-  cheap enough to list a folder of backups. **`readAttributes(file)`** deserializes the
-  attribute map on demand (so it needs the attribute classes on the classpath).
+- **Metadata** travels with the archive as the session's `.meta` map (arbitrary live Java objects —
+  e.g. a prompt template plus an argument spec), turning a saved session into a primed, packaged
+  "AI application" capsule. There is no separate name/description: use map keys.
+- **`readManifest(file)`** returns provenance (id, original working dir, created-at, message count,
+  whether metadata is present) **without** extracting the archive or deserializing the metadata —
+  cheap enough to list a folder of backups. **`readMetaData(file)`** deserializes the metadata map
+  on demand (so it needs the value classes on the classpath).
 - The working tree is captured **in full** (no excludes), so an archive may be large and may
-  include secrets (`.env`, `.git`, …) in one easily-shared file — handle accordingly. Attributes
-  use Java serialization, so treat `readAttributes` on an untrusted archive with the usual
-  deserialization caution.
+  include secrets (`.env`, `.git`, …) in one easily-shared file — handle accordingly. Metadata uses
+  Java serialization, so treat an untrusted archive with the usual deserialization caution.
 
-**Conveniences.** From a loaded `Session`, `session.archiveTo(file, metadata)` infers the working
-directory (from the transcript's `cwd`) and projects root for you; from a live client,
-`client.archiveSession(file, metadata)` archives the current session in one call.
+**Conveniences.** From a loaded `Session`, `session.archiveTo(file)` infers the working directory
+(from the transcript's `cwd`) and projects root for you; from a live client,
+`client.archiveSession(file)` archives the current session in one call. Both take the metadata from
+the session's `.meta`; `archiveTo` additionally verifies the in-memory `metaData()` still matches
+the on-disk `.meta` (and throws if you mutated the map without persisting it).
 
 ## Caveats
 

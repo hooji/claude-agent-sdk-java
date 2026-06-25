@@ -17,9 +17,16 @@
 package org.springaicommunity.claude.agent.sdk.transcript;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -44,10 +51,25 @@ import reactor.core.publisher.Flux;
  * fork points (it is then a single segment owned by this session)
  * @param forkMarkers one precomputed {@link ForkMarker} per segment boundary (so always
  * {@code segments.size() - 1} of them), in order
+ * @param metaData the SDK-managed metadata associated with this session, loaded from its
+ * {@code <id>.meta} sidecar (empty when none exists). This is a <em>live, mutable</em> map: to
+ * change it, go through {@link #putMetaData} / {@link #removeMetaData} (which persist the change),
+ * not by mutating the returned map directly. Because it is mutable, a {@code Session} must not be
+ * used as a hash-map key or set element.
  */
 public record Session(String sessionId, Path file, boolean agentSession, String agentId,
 		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments,
-		List<ForkMarker> forkMarkers) {
+		List<ForkMarker> forkMarkers, Map<String, Serializable> metaData) {
+
+	/**
+	 * Canonical constructor; normalizes a {@code null} {@code metaData} to a fresh empty
+	 * {@link LinkedHashMap}. The map is intentionally <em>not</em> defensively copied — it is the
+	 * live map that {@link #putMetaData}, {@link #removeMetaData} and {@link #writeMetaData} mutate
+	 * and persist.
+	 */
+	public Session {
+		metaData = metaData == null ? new LinkedHashMap<>() : metaData;
+	}
 
 	/** @return true if this session inherited history from a fork (more than one segment). */
 	public boolean isFork() {
@@ -95,18 +117,116 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	}
 
 	/**
-	 * Archives this session — its transcript and its entire working directory tree — to
-	 * {@code targetArchive} as a single portable file (see {@link SessionArchive}). The working
-	 * directory is recovered via {@link #workingDirectory()} and the projects root from this
-	 * session's {@link #file()}.
+	 * The path to this session's {@code <id>.meta} metadata sidecar (next to the transcript). The
+	 * file may not exist — it is written lazily, the first time metadata is persisted.
+	 * @return the {@code .meta} sidecar path
+	 */
+	public Path metaFilePath() {
+		return SessionMetadata.fileFor(file);
+	}
+
+	/**
+	 * The last-modified time of this session's transcript {@code .jsonl} file.
+	 * @return the transcript's last-modified instant, or {@code null} if the file does not exist
+	 * @throws UncheckedIOException if the file's time cannot be read
+	 */
+	public Instant lastTranscriptUpdateTime() {
+		return lastModified(file);
+	}
+
+	/**
+	 * The last-modified time of this session's {@code .meta} sidecar.
+	 * @return the sidecar's last-modified instant, or {@code null} if no metadata has been written
+	 * @throws UncheckedIOException if the file's time cannot be read
+	 */
+	public Instant lastMetaDataUpdateTime() {
+		return lastModified(metaFilePath());
+	}
+
+	/**
+	 * The most recent update to either the transcript or the {@code .meta} sidecar — the natural
+	 * sort key for a "most recently used" session list.
+	 * @return the later of {@link #lastTranscriptUpdateTime()} and {@link #lastMetaDataUpdateTime()},
+	 * ignoring whichever is {@code null}; {@code null} only if neither file exists
+	 */
+	public Instant lastUpdateTime() {
+		Instant transcript = lastTranscriptUpdateTime();
+		Instant meta = lastMetaDataUpdateTime();
+		if (transcript == null) {
+			return meta;
+		}
+		if (meta == null) {
+			return transcript;
+		}
+		return meta.isAfter(transcript) ? meta : transcript;
+	}
+
+	/** Last-modified instant of {@code path}, or {@code null} if it does not exist. */
+	private static Instant lastModified(Path path) {
+		try {
+			return Files.getLastModifiedTime(path).toInstant();
+		}
+		catch (NoSuchFileException e) {
+			return null;
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	/**
+	 * Writes this session's current {@link #metaData()} to its {@code <id>.meta} sidecar file
+	 * (next to the transcript), serializing the live map as it stands. Prefer {@link #putMetaData}
+	 * / {@link #removeMetaData}, which mutate and persist in one step; call this directly only
+	 * after mutating the map by other means.
+	 * @throws IOException if the sidecar file cannot be written
+	 */
+	public void writeMetaData() throws IOException {
+		SessionMetadata.writeToFile(metaFilePath(), metaData);
+	}
+
+	/**
+	 * Associates {@code value} with {@code key} in this session's metadata and immediately
+	 * persists the change to the {@code <id>.meta} sidecar, keeping the in-memory map and the file
+	 * in sync.
+	 * @param key the metadata key
+	 * @param value the value (must be {@link Serializable}; {@code null} stores a null value)
+	 * @throws IOException if the sidecar file cannot be written
+	 */
+	public void putMetaData(String key, Serializable value) throws IOException {
+		metaData.put(key, value);
+		writeMetaData();
+	}
+
+	/**
+	 * Removes {@code key} from this session's metadata and immediately persists the change to the
+	 * {@code <id>.meta} sidecar, keeping the in-memory map and the file in sync.
+	 * @param key the metadata key to remove
+	 * @throws IOException if the sidecar file cannot be written
+	 */
+	public void removeMetaData(String key) throws IOException {
+		metaData.remove(key);
+		writeMetaData();
+	}
+
+	/**
+	 * Archives this session — its transcript, its {@code <id>.meta} metadata, and its entire
+	 * working directory tree — to {@code targetArchive} as a single portable file (see
+	 * {@link SessionArchive}). The working directory is recovered via {@link #workingDirectory()}
+	 * and the projects root from this session's {@link #file()}; the metadata is taken from the
+	 * {@code .meta} file on disk.
+	 *
+	 * <p>As a safety check against forgetting to persist a mutation, this verifies the in-memory
+	 * {@link #metaData()} still matches the on-disk {@code .meta} (same entries, same order) and
+	 * throws if they have diverged — mutate via {@link #putMetaData}/{@link #removeMetaData}, or
+	 * call {@link #writeMetaData()} before archiving.
 	 * @param targetArchive the archive file to write
-	 * @param metadata name/description/attributes to embed (may be {@code null})
 	 * @return the archive file written
 	 * @throws IOException if the session's files can't be read or the archive can't be written
 	 * @throws IllegalStateException if the working directory can't be inferred (no {@code cwd} in
-	 * the transcript) — call {@link SessionArchive#create} with an explicit directory instead
+	 * the transcript), or the in-memory metadata differs from the on-disk {@code .meta}
 	 */
-	public Path archiveTo(Path targetArchive, SessionArchive.Metadata metadata) throws IOException {
+	public Path archiveTo(Path targetArchive) throws IOException {
 		Path workingDir = workingDirectory().orElseThrow(() -> new IllegalStateException(
 				"Cannot infer the working directory for session " + sessionId
 						+ " (no cwd recorded in its transcript); use SessionArchive.create(sessionId, "
@@ -116,7 +236,13 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 		if (projectsRoot == null) {
 			throw new IllegalStateException("Cannot derive the projects root from transcript path " + file);
 		}
-		return SessionArchive.create(sessionId, workingDir, targetArchive, metadata, projectsRoot);
+		Map<String, Serializable> onDisk = SessionMetadata.readFromFile(metaFilePath());
+		if (!SessionMetadata.equalsOrdered(metaData, onDisk)) {
+			throw new IllegalStateException("In-memory metadata for session " + sessionId
+					+ " differs from its on-disk .meta file; mutate via putMetaData/removeMetaData, or call "
+					+ "writeMetaData() before archiving");
+		}
+		return SessionArchive.create(sessionId, workingDir, targetArchive, projectsRoot);
 	}
 
 	/**

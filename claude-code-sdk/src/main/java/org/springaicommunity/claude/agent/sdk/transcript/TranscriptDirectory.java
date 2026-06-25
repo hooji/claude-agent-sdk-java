@@ -17,6 +17,7 @@
 package org.springaicommunity.claude.agent.sdk.transcript;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,7 +70,16 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * @return the loaded transcripts; empty (no sessions) if none exist yet
 	 */
 	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory) throws IOException {
-		return forWorkingDirectory(workingDirectory, projectsRoot());
+		return forWorkingDirectory(workingDirectory, projectsRoot(), false);
+	}
+
+	/**
+	 * Variant of {@link #forWorkingDirectory(Path)} that can skip parsing the transcripts (see
+	 * {@link #load(Path, boolean)}), for a fast metadata-only scan.
+	 */
+	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, boolean dontLoadTranscripts)
+			throws IOException {
+		return forWorkingDirectory(workingDirectory, projectsRoot(), dontLoadTranscripts);
 	}
 
 	/**
@@ -78,11 +88,20 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 */
 	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, Path projectsRoot)
 			throws IOException {
+		return forWorkingDirectory(workingDirectory, projectsRoot, false);
+	}
+
+	/**
+	 * Variant of {@link #forWorkingDirectory(Path)} with an explicit projects root that can skip
+	 * parsing the transcripts (see {@link #load(Path, boolean)}), for a fast metadata-only scan.
+	 */
+	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, Path projectsRoot,
+			boolean dontLoadTranscripts) throws IOException {
 		Path dir = projectsDirFor(workingDirectory, projectsRoot);
 		if (!Files.isDirectory(dir)) {
 			return new TranscriptDirectory(dir, List.of(), List.of());
 		}
-		return load(dir);
+		return load(dir, dontLoadTranscripts);
 	}
 
 	/**
@@ -95,6 +114,15 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * @return one loaded directory per non-empty working-directory folder, ordered by folder name
 	 */
 	public static List<TranscriptDirectory> allUnder(Path projectsRoot) throws IOException {
+		return allUnder(projectsRoot, false);
+	}
+
+	/**
+	 * Variant of {@link #allUnder(Path)} that can skip parsing the transcripts (see
+	 * {@link #load(Path, boolean)}), for a fast metadata-only scan of every working directory.
+	 */
+	public static List<TranscriptDirectory> allUnder(Path projectsRoot, boolean dontLoadTranscripts)
+			throws IOException {
 		if (!Files.isDirectory(projectsRoot)) {
 			return List.of();
 		}
@@ -104,7 +132,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 		}
 		List<TranscriptDirectory> out = new ArrayList<>();
 		for (Path d : dirs) {
-			TranscriptDirectory loaded = load(d);
+			TranscriptDirectory loaded = load(d, dontLoadTranscripts);
 			if (!loaded.sessions().isEmpty()) {
 				out.add(loaded);
 			}
@@ -114,7 +142,15 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 
 	/** {@link #allUnder(Path)} using the default {@link #projectsRoot()}. */
 	public static List<TranscriptDirectory> allUnder() throws IOException {
-		return allUnder(projectsRoot());
+		return allUnder(projectsRoot(), false);
+	}
+
+	/**
+	 * {@link #allUnder(Path, boolean)} using the default {@link #projectsRoot()}, for a fast
+	 * metadata-only scan of every working directory.
+	 */
+	public static List<TranscriptDirectory> allUnder(boolean dontLoadTranscripts) throws IOException {
+		return allUnder(projectsRoot(), dontLoadTranscripts);
 	}
 
 	/**
@@ -174,15 +210,45 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 
 	/** Loads and analyzes every {@code *.jsonl} transcript directly under {@code directory}. */
 	public static TranscriptDirectory load(Path directory) throws IOException {
-		ObjectMapper mapper = new ObjectMapper();
-		MessageParser parser = new MessageParser();
+		return load(directory, false);
+	}
 
+	/**
+	 * Loads every {@code *.jsonl} transcript directly under {@code directory}, optionally skipping
+	 * the (relatively expensive) transcript parse and fork analysis.
+	 *
+	 * <p>When {@code dontLoadTranscripts} is {@code true}, each {@link Session} is populated only
+	 * with its identity and metadata — {@link Session#sessionId()}, {@link Session#file()},
+	 * {@link Session#agentSession()}, {@link Session#agentId()} and {@link Session#metaData()} —
+	 * while {@code entries}, {@code messages}, {@code segments} and {@code forkMarkers} are left
+	 * empty and no {@link ConversationFamily} fork analysis is performed (so {@link #families()}
+	 * is empty). This is a fast scan for building a session browser; load a chosen session fully
+	 * (default {@code load}) before replaying, archiving, or inspecting its history.
+	 * @param directory the transcript folder to load
+	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only scan)
+	 */
+	public static TranscriptDirectory load(Path directory, boolean dontLoadTranscripts) throws IOException {
 		List<Path> files;
 		try (Stream<Path> s = Files.list(directory)) {
 			files = s.filter(p -> p.getFileName().toString().endsWith(".jsonl"))
 					.sorted()
 					.toList();
 		}
+
+		if (dontLoadTranscripts) {
+			List<Session> lite = new ArrayList<>();
+			for (Path f : files) {
+				String sessionId = stripExtension(f.getFileName().toString());
+				boolean agent = sessionId.startsWith("agent-");
+				String agentId = agent ? sessionId.substring("agent-".length()) : null;
+				lite.add(new Session(sessionId, f, agent, agentId, List.of(), List.of(), List.of(), List.of(),
+						readMetaData(f)));
+			}
+			return new TranscriptDirectory(directory, List.copyOf(lite), List.of());
+		}
+
+		ObjectMapper mapper = new ObjectMapper();
+		MessageParser parser = new MessageParser();
 
 		// Local holder for the raw parse, before fork analysis (which needs all files).
 		record Raw(String sessionId, Path file, boolean agentSession, String agentId, List<TranscriptEntry> entries) {
@@ -270,7 +336,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 				markers.add(new ForkMarker(parent, child, segments.get(i).startIndex(), siblings));
 			}
 			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), r.entries(),
-					messagesBySession.get(r.sessionId()), segments, List.copyOf(markers)));
+					messagesBySession.get(r.sessionId()), segments, List.copyOf(markers), readMetaData(r.file())));
 		}
 
 		List<ConversationFamily> families = buildFamilies(sessions);
@@ -407,8 +473,10 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 
 	/**
 	 * Writes every loaded session back to {@code destDir} under its original filename, using
-	 * each entry's retained raw JSON. The result is JSON-equivalent to the source (not
-	 * necessarily byte-identical), which is the basis of the round-trip fidelity test.
+	 * each entry's retained raw JSON. Each session's {@code <id>.meta} sidecar is regenerated
+	 * alongside its transcript when the session carries metadata. The result is JSON-equivalent to
+	 * the source (not necessarily byte-identical), which is the basis of the round-trip fidelity
+	 * test.
 	 */
 	public void regenerate(Path destDir) throws IOException {
 		Files.createDirectories(destDir);
@@ -425,6 +493,9 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 				}
 			}
 			Files.write(out, lines);
+			if (!s.metaData().isEmpty()) {
+				SessionMetadata.writeToFile(SessionMetadata.fileFor(out), s.metaData());
+			}
 		}
 	}
 
@@ -487,6 +558,11 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	private static String stripExtension(String name) {
 		int dot = name.lastIndexOf('.');
 		return dot < 0 ? name : name.substring(0, dot);
+	}
+
+	/** Reads the {@code <id>.meta} sidecar for a transcript file (empty map when absent). */
+	private static Map<String, Serializable> readMetaData(Path transcriptFile) throws IOException {
+		return SessionMetadata.readFromFile(SessionMetadata.fileFor(transcriptFile));
 	}
 
 	private static String shortId(String id) {

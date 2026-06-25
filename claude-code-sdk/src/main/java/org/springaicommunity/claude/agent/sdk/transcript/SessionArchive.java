@@ -16,11 +16,8 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -29,7 +26,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Enumeration;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -43,15 +40,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Packages a single Claude Code session — its transcript <em>and</em> the entire working
- * directory tree it ran in — into one portable, compressed archive file, plus arbitrary
- * metadata, so a session and all its associated files can be treated as a single "thing" that
- * is saved, copied, and moved around.
+ * Packages a single Claude Code session — its transcript, its SDK metadata, <em>and</em> the
+ * entire working directory tree it ran in — into one portable, compressed archive file, so a
+ * session and all its associated files can be treated as a single "thing" that is saved, copied,
+ * and moved around.
  *
  * <p>This is the full-snapshot counterpart to {@link SessionClone}: where a clone always forks
  * to a <em>new</em> id in a sibling directory, an archive is a relocatable backup that, on
  * {@link #restore restore}, defaults to keeping the original session id (so the restored copy
  * <em>is</em> the same session) with the option to mint a new one.
+ *
+ * <p><b>Metadata.</b> An archive carries the session's metadata by embedding its {@code <id>.meta}
+ * sidecar verbatim (see {@link SessionMetadata}); there is no separate name/description — store
+ * those as ordinary keys in the {@link Session#metaData() metadata map}. Archiving copies the
+ * {@code .meta} bytes as-is (no deserialization, so the value classes are not needed to
+ * <em>create</em> an archive); {@link #readMetaData} and {@link #restore} do read it back.
  *
  * <p><b>Scope.</b> An archive contains only the <em>specified</em> session's transcript (a fork
  * already embeds its ancestors' history, so it stays self-contained) — never the sibling
@@ -59,8 +62,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <h2>Archive layout</h2> A ZIP (no external dependency) with:
  * <pre>
- *   manifest.json                  provenance + name/description (see {@link Manifest})
- *   attributes.ser                 the Map&lt;String,Serializable&gt; attributes (Java-serialized; omitted if empty)
+ *   manifest.json                  provenance (see {@link Manifest})
+ *   metadata.ser                   the session's {@code .meta} bytes (Java-serialized map; omitted if no .meta)
  *   transcript/&lt;sessionId&gt;.jsonl   the one session's transcript (verbatim)
  *   transcript/&lt;sessionId&gt;/...     externalized tool-result sidecar files, if any
  *   workdir/...                    the entire working-directory tree
@@ -68,18 +71,18 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <p><b>Caveats.</b> The working tree is captured in full — it may be large and may contain
  * secrets (e.g. {@code .env}, credentials, {@code .git}); an archive is a single easily-shared
- * file. Attribute values are stored with Java serialization, so reading them back requires the
- * same classes on the classpath; treat {@link #readAttributes} on an untrusted archive with the
- * same caution as any Java deserialization.
+ * file. Metadata values are stored with Java serialization, so reading them back ({@link
+ * #readMetaData}, {@link #restore} followed by a load) requires the same classes on the
+ * classpath; treat an untrusted archive with the same caution as any Java deserialization.
  */
 public final class SessionArchive {
 
 	/** Bumped if the on-disk archive layout changes incompatibly. */
-	static final int SCHEMA_VERSION = 1;
+	static final int SCHEMA_VERSION = 2;
 
 	private static final String MANIFEST = "manifest.json";
 
-	private static final String ATTRIBUTES = "attributes.ser";
+	private static final String METADATA = "metadata.ser";
 
 	private static final String TRANSCRIPT_PREFIX = "transcript/";
 
@@ -91,30 +94,9 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * User-supplied metadata stored alongside the session.
-	 *
-	 * @param name a short human label (may be {@code null})
-	 * @param description a longer description (may be {@code null})
-	 * @param attributes arbitrary extra metadata; values must be {@link Serializable} so they
-	 * can carry live Java objects (e.g. a prompt template + an argument spec). Never
-	 * {@code null} — an absent map becomes empty.
-	 */
-	public record Metadata(String name, String description, Map<String, Serializable> attributes) {
-
-		public Metadata {
-			attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
-		}
-
-		/** Metadata with just a name and description (no extra attributes). */
-		public static Metadata of(String name, String description) {
-			return new Metadata(name, description, Map.of());
-		}
-	}
-
-	/**
 	 * The provenance recorded in an archive, readable without extracting it (see
-	 * {@link #readManifest}). Attributes are <em>not</em> included here — they require the
-	 * attribute classes on the classpath and are read separately via {@link #readAttributes}.
+	 * {@link #readManifest}). The metadata itself is <em>not</em> included here — it requires the
+	 * value classes on the classpath and is read separately via {@link #readMetaData}.
 	 *
 	 * @param schemaVersion the archive format version
 	 * @param sessionId the original (archived) session id
@@ -122,12 +104,11 @@ public final class SessionArchive {
 	 * to rewrite paths on restore)
 	 * @param createdAt when the archive was written ({@code null} if unparseable)
 	 * @param messageCount number of conversation messages in the transcript
-	 * @param name the {@link Metadata#name()} (may be {@code null})
-	 * @param description the {@link Metadata#description()} (may be {@code null})
-	 * @param hasAttributes whether the archive carries serialized attributes
+	 * @param hasMetaData whether the archive carries an embedded {@code .meta} (which may itself
+	 * be an explicitly-empty map)
 	 */
 	public record Manifest(int schemaVersion, String sessionId, String originalWorkingDir, Instant createdAt,
-			int messageCount, String name, String description, boolean hasAttributes) {
+			int messageCount, boolean hasMetaData) {
 	}
 
 	/**
@@ -146,24 +127,23 @@ public final class SessionArchive {
 	 * using the default Claude projects root.
 	 * @return the archive file path actually written
 	 */
-	public static Path create(String sessionId, Path workingDir, Path targetArchive, Metadata metadata)
-			throws IOException {
-		return create(sessionId, workingDir, targetArchive, metadata, TranscriptDirectory.projectsRoot());
+	public static Path create(String sessionId, Path workingDir, Path targetArchive) throws IOException {
+		return create(sessionId, workingDir, targetArchive, TranscriptDirectory.projectsRoot());
 	}
 
 	/**
 	 * Archives {@code sessionId} (which ran in {@code workingDir}) to {@code targetArchive}, with
-	 * an explicit {@code projectsRoot}.
+	 * an explicit {@code projectsRoot}. The session's metadata is picked up from its
+	 * {@code <id>.meta} sidecar (omitted if there is none).
 	 * @return the archive file path actually written (absolute, normalized)
 	 * @throws IllegalArgumentException if the working dir/transcript can't be found or the target
 	 * archive would sit inside the working tree being captured
 	 */
-	public static Path create(String sessionId, Path workingDir, Path targetArchive, Metadata metadata,
-			Path projectsRoot) throws IOException {
+	public static Path create(String sessionId, Path workingDir, Path targetArchive, Path projectsRoot)
+			throws IOException {
 		if (!Files.isDirectory(workingDir)) {
 			throw new IllegalArgumentException("workingDir is not a directory: " + workingDir);
 		}
-		Metadata meta = metadata == null ? Metadata.of(null, null) : metadata;
 		Path srcReal = workingDir.toRealPath();
 		Path transcript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
 
@@ -177,12 +157,17 @@ public final class SessionArchive {
 			Files.createDirectories(archiveAbs.getParent());
 		}
 
-		ObjectNode manifest = buildManifest(sessionId, srcReal.toString(), countMessages(transcript), meta);
+		// The metadata sidecar travels verbatim — copied as bytes, never deserialized here, so
+		// creating an archive does not require the metadata value classes on the classpath.
+		Path metaFile = SessionMetadata.fileFor(transcript);
+		byte[] metaBytes = Files.isRegularFile(metaFile) ? Files.readAllBytes(metaFile) : null;
+
+		ObjectNode manifest = buildManifest(sessionId, srcReal.toString(), countMessages(transcript), metaBytes != null);
 
 		try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveAbs))) {
 			writeBytes(zip, MANIFEST, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
-			if (!meta.attributes().isEmpty()) {
-				writeBytes(zip, ATTRIBUTES, serialize(meta.attributes()));
+			if (metaBytes != null) {
+				writeBytes(zip, METADATA, metaBytes);
 			}
 			writeBytes(zip, TRANSCRIPT_PREFIX + sessionId + ".jsonl", Files.readAllBytes(transcript));
 			Path aux = transcript.getParent().resolve(sessionId);
@@ -213,7 +198,8 @@ public final class SessionArchive {
 	/**
 	 * Restores an archive into {@code targetWorkingDir}: inflates the working tree, then re-homes
 	 * the transcript under {@code projectsRoot} with every path reference rewritten from the
-	 * archived working directory to {@code targetWorkingDir}.
+	 * archived working directory to {@code targetWorkingDir}, and materializes the session's
+	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata.
 	 * @param newSessionId {@code false} keeps the archived id (a faithful restore/move);
 	 * {@code true} assigns a fresh id, forking an independent line on restore
 	 * @return the restored id, working directory, transcript path, and the manifest
@@ -249,6 +235,7 @@ public final class SessionArchive {
 		String fromPath = manifest.originalWorkingDir();
 		String toPath = targetReal.toString();
 		Path auxDir = targetProjectsDir.resolve(restoreId);
+		Path targetMeta = targetProjectsDir.resolve(restoreId + SessionMetadata.EXTENSION);
 		String transcriptFileEntry = TRANSCRIPT_PREFIX + origId + ".jsonl";
 		String auxPrefix = TRANSCRIPT_PREFIX + origId + "/";
 
@@ -257,10 +244,17 @@ public final class SessionArchive {
 			while (entries.hasMoreElements()) {
 				ZipEntry e = entries.nextElement();
 				String name = e.getName();
-				if (name.equals(MANIFEST) || name.equals(ATTRIBUTES)) {
-					continue; // attributes are read on demand via readAttributes(), never auto-deserialized
+				if (name.equals(MANIFEST)) {
+					continue;
 				}
-				if (name.equals(transcriptFileEntry)) {
+				if (name.equals(METADATA)) {
+					// The metadata map is opaque (no paths to re-home); copy it verbatim under the
+					// restore id, so a subsequent load picks it up as this session's metaData.
+					try (InputStream in = zip.getInputStream(e)) {
+						Files.write(targetMeta, in.readAllBytes());
+					}
+				}
+				else if (name.equals(transcriptFileEntry)) {
 					List<String> lines;
 					try (InputStream in = zip.getInputStream(e)) {
 						lines = splitLines(in.readAllBytes());
@@ -282,8 +276,8 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Reads an archive's {@link Manifest} (name, description, provenance) without extracting it
-	 * or touching its serialized attributes.
+	 * Reads an archive's {@link Manifest} (provenance) without extracting it or touching its
+	 * serialized metadata.
 	 */
 	public static Manifest readManifest(Path archive) throws IOException {
 		try (ZipFile zip = new ZipFile(archive.toFile())) {
@@ -297,28 +291,23 @@ public final class SessionArchive {
 			}
 			return new Manifest(m.path("schemaVersion").asInt(SCHEMA_VERSION), textOrNull(m, "sessionId"),
 					textOrNull(m, "originalWorkingDir"), parseInstant(textOrNull(m, "createdAt")),
-					m.path("messageCount").asInt(0), textOrNull(m, "name"), textOrNull(m, "description"),
-					m.path("hasAttributes").asBoolean(false));
+					m.path("messageCount").asInt(0), m.path("hasMetaData").asBoolean(false));
 		}
 	}
 
 	/**
-	 * Deserializes the archive's attribute map (empty if it has none). Requires the attribute
-	 * value classes on the classpath.
-	 * @throws IOException if the archive can't be read, or an attribute class is missing
+	 * Deserializes the archive's embedded session metadata (empty if it has none). Requires the
+	 * metadata value classes on the classpath.
+	 * @throws IOException if the archive can't be read, or a value class is missing
 	 */
-	@SuppressWarnings("unchecked")
-	public static Map<String, Serializable> readAttributes(Path archive) throws IOException {
+	public static Map<String, Serializable> readMetaData(Path archive) throws IOException {
 		try (ZipFile zip = new ZipFile(archive.toFile())) {
-			ZipEntry e = zip.getEntry(ATTRIBUTES);
+			ZipEntry e = zip.getEntry(METADATA);
 			if (e == null) {
-				return Map.of();
+				return new LinkedHashMap<>();
 			}
-			try (ObjectInputStream ois = new ObjectInputStream(zip.getInputStream(e))) {
-				return (Map<String, Serializable>) ois.readObject();
-			}
-			catch (ClassNotFoundException ex) {
-				throw new IOException("An archived attribute's class is not on the classpath: " + ex.getMessage(), ex);
+			try (InputStream in = zip.getInputStream(e)) {
+				return SessionMetadata.deserialize(in.readAllBytes());
 			}
 		}
 	}
@@ -326,20 +315,14 @@ public final class SessionArchive {
 	// --- internals -----------------------------------------------------------------------
 
 	private static ObjectNode buildManifest(String sessionId, String originalWorkingDir, int messageCount,
-			Metadata meta) {
+			boolean hasMetaData) {
 		ObjectNode m = MAPPER.createObjectNode();
 		m.put("schemaVersion", SCHEMA_VERSION);
 		m.put("sessionId", sessionId);
 		m.put("originalWorkingDir", originalWorkingDir);
 		m.put("createdAt", Instant.now().toString());
 		m.put("messageCount", messageCount);
-		if (meta.name() != null) {
-			m.put("name", meta.name());
-		}
-		if (meta.description() != null) {
-			m.put("description", meta.description());
-		}
-		m.put("hasAttributes", !meta.attributes().isEmpty());
+		m.put("hasMetaData", hasMetaData);
 		return m;
 	}
 
@@ -360,14 +343,6 @@ public final class SessionArchive {
 			}
 		}
 		return n;
-	}
-
-	private static byte[] serialize(Map<String, Serializable> attributes) throws IOException {
-		ByteArrayOutputStream bos = new ByteArrayOutputStream();
-		try (ObjectOutputStream oos = new ObjectOutputStream(bos)) {
-			oos.writeObject(new HashMap<>(attributes));
-		}
-		return bos.toByteArray();
 	}
 
 	/** Adds every file under {@code root} to the zip, prefixing entry names with {@code entryPrefix}. */

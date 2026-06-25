@@ -65,7 +65,7 @@ class BackgroundAgentIT extends ClaudeCliTestBase {
 
 		// the finished agent composes with SessionArchive
 		Path archive = archiveDir.resolve("agent.zip");
-		agent.archiveTo(archive, SessionArchive.Metadata.of("bg-agent-it", "pong run"));
+		agent.archiveTo(archive);
 		assertThat(Files.exists(archive)).isTrue();
 		assertThat(SessionArchive.readManifest(archive).sessionId()).isEqualTo(agent.sessionId());
 	}
