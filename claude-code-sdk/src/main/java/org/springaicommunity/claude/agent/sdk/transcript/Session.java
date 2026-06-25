@@ -18,7 +18,11 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -113,6 +117,64 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	}
 
 	/**
+	 * The path to this session's {@code <id>.meta} metadata sidecar (next to the transcript). The
+	 * file may not exist — it is written lazily, the first time metadata is persisted.
+	 * @return the {@code .meta} sidecar path
+	 */
+	public Path metaFilePath() {
+		return SessionMetadata.fileFor(file);
+	}
+
+	/**
+	 * The last-modified time of this session's transcript {@code .jsonl} file.
+	 * @return the transcript's last-modified instant, or {@code null} if the file does not exist
+	 * @throws UncheckedIOException if the file's time cannot be read
+	 */
+	public Instant lastTranscriptUpdateTime() {
+		return lastModified(file);
+	}
+
+	/**
+	 * The last-modified time of this session's {@code .meta} sidecar.
+	 * @return the sidecar's last-modified instant, or {@code null} if no metadata has been written
+	 * @throws UncheckedIOException if the file's time cannot be read
+	 */
+	public Instant lastMetaDataUpdateTime() {
+		return lastModified(metaFilePath());
+	}
+
+	/**
+	 * The most recent update to either the transcript or the {@code .meta} sidecar — the natural
+	 * sort key for a "most recently used" session list.
+	 * @return the later of {@link #lastTranscriptUpdateTime()} and {@link #lastMetaDataUpdateTime()},
+	 * ignoring whichever is {@code null}; {@code null} only if neither file exists
+	 */
+	public Instant lastUpdateTime() {
+		Instant transcript = lastTranscriptUpdateTime();
+		Instant meta = lastMetaDataUpdateTime();
+		if (transcript == null) {
+			return meta;
+		}
+		if (meta == null) {
+			return transcript;
+		}
+		return meta.isAfter(transcript) ? meta : transcript;
+	}
+
+	/** Last-modified instant of {@code path}, or {@code null} if it does not exist. */
+	private static Instant lastModified(Path path) {
+		try {
+			return Files.getLastModifiedTime(path).toInstant();
+		}
+		catch (NoSuchFileException e) {
+			return null;
+		}
+		catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+	}
+
+	/**
 	 * Writes this session's current {@link #metaData()} to its {@code <id>.meta} sidecar file
 	 * (next to the transcript), serializing the live map as it stands. Prefer {@link #putMetaData}
 	 * / {@link #removeMetaData}, which mutate and persist in one step; call this directly only
@@ -120,7 +182,7 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	 * @throws IOException if the sidecar file cannot be written
 	 */
 	public void writeMetaData() throws IOException {
-		SessionMetadata.writeToFile(SessionMetadata.fileFor(file), metaData);
+		SessionMetadata.writeToFile(metaFilePath(), metaData);
 	}
 
 	/**
@@ -174,7 +236,7 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 		if (projectsRoot == null) {
 			throw new IllegalStateException("Cannot derive the projects root from transcript path " + file);
 		}
-		Map<String, Serializable> onDisk = SessionMetadata.readFromFile(SessionMetadata.fileFor(file));
+		Map<String, Serializable> onDisk = SessionMetadata.readFromFile(metaFilePath());
 		if (!SessionMetadata.equalsOrdered(metaData, onDisk)) {
 			throw new IllegalStateException("In-memory metadata for session " + sessionId
 					+ " differs from its on-disk .meta file; mutate via putMetaData/removeMetaData, or call "

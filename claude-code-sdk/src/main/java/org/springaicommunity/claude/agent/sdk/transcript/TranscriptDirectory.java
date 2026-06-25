@@ -473,8 +473,10 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 
 	/**
 	 * Writes every loaded session back to {@code destDir} under its original filename, using
-	 * each entry's retained raw JSON. The result is JSON-equivalent to the source (not
-	 * necessarily byte-identical), which is the basis of the round-trip fidelity test.
+	 * each entry's retained raw JSON. Each session's {@code <id>.meta} sidecar is regenerated
+	 * alongside its transcript when the session carries metadata. The result is JSON-equivalent to
+	 * the source (not necessarily byte-identical), which is the basis of the round-trip fidelity
+	 * test.
 	 */
 	public void regenerate(Path destDir) throws IOException {
 		Files.createDirectories(destDir);
@@ -491,6 +493,9 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 				}
 			}
 			Files.write(out, lines);
+			if (!s.metaData().isEmpty()) {
+				SessionMetadata.writeToFile(SessionMetadata.fileFor(out), s.metaData());
+			}
 		}
 	}
 

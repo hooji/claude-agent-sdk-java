@@ -19,6 +19,7 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -258,6 +259,40 @@ class SessionArchiveTest {
 		reloaded.removeMetaData("second");
 		Session afterRemoval = load(source, projects);
 		assertThat(new ArrayList<>(afterRemoval.metaData().keySet())).containsExactly("first", "third");
+	}
+
+	@Test
+	void exposesFileTimesForRecencySorting(@TempDir Path source, @TempDir Path projects) throws Exception {
+		seedSession(source, projects);
+		Session s = load(source, projects);
+
+		// metaFilePath() points at <id>.meta next to the transcript.
+		assertThat(s.metaFilePath()).isEqualTo(s.file().resolveSibling(sid + ".meta"));
+
+		// No metadata yet: transcript time known, meta time null, lastUpdate == transcript time.
+		assertThat(s.lastTranscriptUpdateTime()).isNotNull();
+		assertThat(s.lastMetaDataUpdateTime()).isNull();
+		assertThat(s.lastUpdateTime()).isEqualTo(s.lastTranscriptUpdateTime());
+
+		// After writing metadata the meta time appears and lastUpdate covers both files.
+		s.putMetaData("k", "v");
+		assertThat(s.lastMetaDataUpdateTime()).isNotNull();
+		assertThat(s.lastUpdateTime()).isAfterOrEqualTo(s.lastTranscriptUpdateTime());
+		assertThat(s.lastUpdateTime()).isAfterOrEqualTo(s.lastMetaDataUpdateTime());
+	}
+
+	@Test
+	void regenerateCarriesMetaData(@TempDir Path source, @TempDir Path projects, @TempDir Path dest) throws Exception {
+		seedSession(source, projects);
+		load(source, projects).putMetaData("title", "kept");
+
+		TranscriptDirectory.forWorkingDirectory(source, projects).regenerate(dest);
+
+		// The regenerated directory has both the transcript and the .meta, and reloads with metadata.
+		assertThat(dest.resolve(sid + ".jsonl")).exists();
+		assertThat(dest.resolve(sid + ".meta")).exists();
+		Session reloaded = TranscriptDirectory.load(dest).byId(sid).orElseThrow();
+		assertThat(reloaded.metaData()).containsEntry("title", "kept");
 	}
 
 	@Test

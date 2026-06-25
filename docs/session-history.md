@@ -172,6 +172,11 @@ for (TranscriptDirectory dir : TranscriptDirectory.allUnder(true)) {   // metada
 Session chosen = TranscriptDirectory.forWorkingDirectory(workingDir).byId(pickedId).orElseThrow();
 ```
 
+Sort the scan by recency for a most-recently-used list: `Session.lastUpdateTime()` returns the
+later of `lastTranscriptUpdateTime()` and `lastMetaDataUpdateTime()` (the `.jsonl` and `.meta`
+file mtimes); `metaFilePath()` exposes the sidecar path itself. These read file times only, so
+they work on a lightweight `Session`.
+
 A lightweight `Session` is for browsing and metadata only: `replay()`, `archiveTo()`, `isFork()`,
 `workingDirectory()` and the like depend on the transcript, so load the session fully (the default,
 `dontLoadTranscripts = false`) before using them. Metadata mutation (`putMetaData` etc.) *does*
