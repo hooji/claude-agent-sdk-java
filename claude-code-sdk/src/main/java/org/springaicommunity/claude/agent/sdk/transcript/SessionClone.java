@@ -19,6 +19,7 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 /**
@@ -101,6 +102,14 @@ public final class SessionClone {
 		Path srcAux = srcTranscript.getParent().resolve(sessionId);
 		if (Files.isDirectory(srcAux)) {
 			Transcripts.copyTree(srcAux, targetProjectsDir.resolve(newId));
+		}
+
+		// 4. Carry the SDK metadata sidecar across under the new id. The map is opaque (no paths
+		// to re-home), so it is copied verbatim.
+		Path srcMeta = SessionMetadata.fileFor(srcTranscript);
+		if (Files.isRegularFile(srcMeta)) {
+			Files.copy(srcMeta, targetProjectsDir.resolve(newId + SessionMetadata.EXTENSION),
+					StandardCopyOption.REPLACE_EXISTING);
 		}
 
 		return new Result(newId, targetDir, targetTranscript);

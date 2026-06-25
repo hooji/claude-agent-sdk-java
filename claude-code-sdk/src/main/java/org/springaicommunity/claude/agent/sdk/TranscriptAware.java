@@ -125,22 +125,22 @@ public interface TranscriptAware {
 
 	/**
 	 * Archives one session of this client's working directory to a single portable file (see
-	 * {@link SessionArchive}). Uses this client's configured {@link #getWorkingDirectory()} (the
-	 * JVM's current directory when none is set) and the default Claude projects root.
+	 * {@link SessionArchive}). The session's metadata travels with it (from its {@code <id>.meta}
+	 * sidecar).
 	 * @param sessionId the session to archive
 	 * @param targetArchive the archive file to write
-	 * @param metadata name/description/attributes to embed (may be {@code null})
 	 * @return the archive file written
-	 * @throws ClaudeSDKException if the session's files can't be read or the archive can't be
-	 * written
+	 * @throws ClaudeSDKException if there is no such session, its files can't be read, or the
+	 * archive can't be written
 	 */
-	default Path archiveSession(String sessionId, Path targetArchive, SessionArchive.Metadata metadata) {
-		Path workingDirectory = getWorkingDirectory();
-		if (workingDirectory == null) {
-			workingDirectory = Path.of(System.getProperty("user.dir"));
+	default Path archiveSession(String sessionId, Path targetArchive) {
+		Session session = getSession(sessionId);
+		if (session == null) {
+			throw new ClaudeSDKException(
+					"No session " + sessionId + " to archive for working directory " + getWorkingDirectory());
 		}
 		try {
-			return SessionArchive.create(sessionId, workingDirectory, targetArchive, metadata);
+			return session.archiveTo(targetArchive);
 		}
 		catch (IOException e) {
 			throw new ClaudeSDKException("Failed to archive session " + sessionId + " to " + targetArchive, e);
@@ -151,16 +151,20 @@ public interface TranscriptAware {
 	 * Archives this client's current session (see {@link #getSession()}) to a single portable
 	 * file.
 	 * @param targetArchive the archive file to write
-	 * @param metadata name/description/attributes to embed (may be {@code null})
 	 * @return the archive file written
 	 * @throws ClaudeSDKException if there is no session yet, or the archive can't be written
 	 */
-	default Path archiveSession(Path targetArchive, SessionArchive.Metadata metadata) {
+	default Path archiveSession(Path targetArchive) {
 		Session session = getSession();
 		if (session == null) {
 			throw new ClaudeSDKException("No session to archive yet for working directory " + getWorkingDirectory());
 		}
-		return archiveSession(session.sessionId(), targetArchive, metadata);
+		try {
+			return session.archiveTo(targetArchive);
+		}
+		catch (IOException e) {
+			throw new ClaudeSDKException("Failed to archive current session to " + targetArchive, e);
+		}
 	}
 
 }

@@ -40,7 +40,7 @@ Session transcript = agent.transcript().orElseThrow();   // full structured hist
 | `awaitTerminal(timeout[, pollInterval])` | Poll until `DONE` / `FAILED` / `STOPPED`, or `TimeoutException`. |
 | `transcript()` | The session's `Session` via the transcript toolkit — replayable, inspectable. |
 | `result()` | The final assistant message text (read from the transcript). |
-| `archiveTo(file, metadata)` | Package the finished agent (transcript + working tree) as a `SessionArchive`. |
+| `archiveTo(file)` | Package the finished agent (transcript + `.meta` metadata + working tree) as a `SessionArchive`. |
 | `logs()` | Raw `claude logs` output (ANSI terminal capture) — prefer `transcript()`/`result()`. |
 | `stop()` | `claude stop` — halts the agent; its conversation is kept. |
 

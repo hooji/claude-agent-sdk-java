@@ -141,18 +141,18 @@ public final class BackgroundAgent {
 	}
 
 	/**
-	 * Archives this agent's session (transcript + its entire working directory tree) to a single
-	 * portable file (see {@link SessionArchive}).
+	 * Archives this agent's session (transcript, its {@code .meta} metadata, and its entire
+	 * working directory tree) to a single portable file (see {@link SessionArchive}). The metadata
+	 * is picked up from the session's {@code <id>.meta} sidecar, if any.
 	 * @param targetArchive the archive file to write
-	 * @param metadata name/description/attributes to embed (may be {@code null})
 	 * @return the archive file written
 	 * @throws IllegalStateException if the agent's session id is not known
 	 */
-	public Path archiveTo(Path targetArchive, SessionArchive.Metadata metadata) throws IOException {
+	public Path archiveTo(Path targetArchive) throws IOException {
 		if (sessionId == null) {
 			throw new IllegalStateException("Cannot archive a background agent whose session id is unknown");
 		}
-		return SessionArchive.create(sessionId, workingDirectory, targetArchive, metadata);
+		return SessionArchive.create(sessionId, workingDirectory, targetArchive);
 	}
 
 	private String cliId() {
