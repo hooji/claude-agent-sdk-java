@@ -100,7 +100,17 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			"remote-control-session-name-prefix", "plugin-url", "n", "file", "debug-file",
 
 			// CLI 2.1.x flags that may warrant SDK support later — not yet evaluated
-			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections");
+			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections",
+
+			// Accessibility flag: only affects interactive TUI rendering (flat text, no borders or
+			// animations) — a no-op for the SDK's --print/stream-json output.
+			"ax-screen-reader",
+
+			// Background agents: `claude --bg` dispatches a detached session and returns
+			// immediately, monitored via `claude agents`. This is a separate dispatch-and-poll
+			// execution model rather than a streaming-client flag, so it warrants a dedicated SDK
+			// API instead of a CLIOptions toggle — tracked separately.
+			"bg", "background");
 
 	/**
 	 * Mapping from CLI flag names to CLIOptions builder method names. Only needed when
