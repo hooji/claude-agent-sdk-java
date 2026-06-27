@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.fasterxml.jackson.databind.JsonNode;
-
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import reactor.core.publisher.Flux;
 
@@ -44,6 +42,11 @@ import reactor.core.publisher.Flux;
  * @param file the source {@code .jsonl} path
  * @param agentSession true if this is a sub-agent sidechain file ({@code agent-*.jsonl})
  * @param agentId the sub-agent id for an agent session, otherwise {@code null}
+ * @param workingDirectory the directory this session ran in, recovered from the {@code cwd}
+ * stamped on the transcript ({@code null} if none was recorded). Unlike the sanitized storage
+ * folder name, this is the real path the user ran Claude in. It is populated even by a
+ * {@linkplain TranscriptDirectory#load(Path, boolean) lightweight} load (which reads only as far
+ * as the first {@code cwd}). See {@link #workingDirectoryPath()} for the {@link Path} form.
  * @param entries every line of the file, in order, retained losslessly
  * @param messages the uuid-bearing subset of {@code entries} (the lineage carrier the fork
  * partition indexes into)
@@ -57,7 +60,7 @@ import reactor.core.publisher.Flux;
  * not by mutating the returned map directly. Because it is mutable, a {@code Session} must not be
  * used as a hash-map key or set element.
  */
-public record Session(String sessionId, Path file, boolean agentSession, String agentId,
+public record Session(String sessionId, Path file, boolean agentSession, String agentId, String workingDirectory,
 		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments,
 		List<ForkMarker> forkMarkers, Map<String, Serializable> metaData) {
 
@@ -101,19 +104,11 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	}
 
 	/**
-	 * The working directory this session ran in, recovered from the {@code cwd} stamped on its
-	 * transcript entries. Unlike the storage folder name — which sanitizes the path
-	 * irreversibly — this is the real directory the user ran Claude in.
-	 * @return the working directory, or empty if no {@code cwd} was recorded
+	 * The {@link #workingDirectory()} as a {@link Path}.
+	 * @return the working directory path, or empty if no {@code cwd} was recorded
 	 */
-	public Optional<Path> workingDirectory() {
-		for (TranscriptEntry e : entries) {
-			JsonNode cwd = e.raw().get("cwd");
-			if (cwd != null && cwd.isTextual() && !cwd.asText().isBlank()) {
-				return Optional.of(Path.of(cwd.asText()));
-			}
-		}
-		return Optional.empty();
+	public Optional<Path> workingDirectoryPath() {
+		return workingDirectory == null ? Optional.empty() : Optional.of(Path.of(workingDirectory));
 	}
 
 	/**
@@ -212,8 +207,8 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	/**
 	 * Archives this session — its transcript, its {@code <id>.meta} metadata, and its entire
 	 * working directory tree — to {@code targetArchive} as a single portable file (see
-	 * {@link SessionArchive}). The working directory is recovered via {@link #workingDirectory()}
-	 * and the projects root from this session's {@link #file()}; the metadata is taken from the
+	 * {@link SessionArchive}). The working directory comes from {@link #workingDirectory()} and the
+	 * projects root from this session's {@link #file()}; the metadata is taken from the
 	 * {@code .meta} file on disk.
 	 *
 	 * <p>As a safety check against forgetting to persist a mutation, this verifies the in-memory
@@ -227,7 +222,7 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	 * the transcript), or the in-memory metadata differs from the on-disk {@code .meta}
 	 */
 	public Path archiveTo(Path targetArchive) throws IOException {
-		Path workingDir = workingDirectory().orElseThrow(() -> new IllegalStateException(
+		Path workingDir = workingDirectoryPath().orElseThrow(() -> new IllegalStateException(
 				"Cannot infer the working directory for session " + sessionId
 						+ " (no cwd recorded in its transcript); use SessionArchive.create(sessionId, "
 						+ "workingDir, ...) with an explicit directory"));
