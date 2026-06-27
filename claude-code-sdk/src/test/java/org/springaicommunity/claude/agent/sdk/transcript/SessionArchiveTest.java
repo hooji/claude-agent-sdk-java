@@ -213,7 +213,8 @@ class SessionArchiveTest {
 		Session session = load(source, projects);
 
 		// The working directory is recovered from the transcript's cwd.
-		assertThat(session.workingDirectory()).contains(source.toRealPath());
+		assertThat(session.workingDirectory()).isEqualTo(source.toRealPath().toString());
+		assertThat(session.workingDirectoryPath()).contains(source.toRealPath());
 		session.putMetaData("via", "session");
 
 		Path archive = tmp.resolve("via-session.zip");
@@ -305,19 +306,23 @@ class SessionArchiveTest {
 		assertThat(lite.families()).isEmpty();
 		Session s = lite.byId(sid).orElseThrow();
 
-		// Identity + metadata are populated...
+		// Identity, working directory, and metadata are populated...
 		assertThat(s.sessionId()).isEqualTo(sid);
 		assertThat(s.agentSession()).isFalse();
 		assertThat(s.metaData()).containsEntry("name", "My Session");
+		// ...the working directory is recovered without parsing the whole transcript...
+		assertThat(s.workingDirectory()).isEqualTo(source.toRealPath().toString());
+		assertThat(s.workingDirectoryPath()).contains(source.toRealPath());
 		// ...but the transcript itself is not parsed.
 		assertThat(s.entries()).isEmpty();
 		assertThat(s.messages()).isEmpty();
 		assertThat(s.segments()).isEmpty();
 		assertThat(s.forkMarkers()).isEmpty();
 
-		// A full load of the same directory does parse the transcript.
+		// A full load of the same directory parses the transcript and recovers the same cwd.
 		Session full = load(source, projects);
 		assertThat(full.entries()).hasSize(2);
+		assertThat(full.workingDirectory()).isEqualTo(source.toRealPath().toString());
 		assertThat(full.metaData()).containsEntry("name", "My Session");
 	}
 

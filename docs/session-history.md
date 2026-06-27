@@ -106,9 +106,10 @@ Two things to keep in mind:
 `TranscriptDirectory.load(Path)` (or `forWorkingDirectory`) parses every `*.jsonl` file
 into:
 
-- **`Session`** — one transcript file: `sessionId()`, `file()`, `workingDirectory()` (recovered
-  from the transcript's `cwd`), `agentSession()` (is it an `agent-*` sidechain?), `entries()`,
-  `messages()`, and the fork partition `segments()`.
+- **`Session`** — one transcript file: `sessionId()`, `file()`, `workingDirectory()` (the `String`
+  path recovered from the transcript's `cwd`; `workingDirectoryPath()` for the `Path` form),
+  `agentSession()` (is it an `agent-*` sidechain?), `entries()`, `messages()`, and the fork
+  partition `segments()`.
 - **`TranscriptEntry`** — one line of the file, kept **losslessly**: the structural fields
   (`uuid`, `parentUuid`, `type`, `timestamp`, …) are lifted out, the parsed SDK `Message`
   is attached when the line is a conversation message, and the complete original JSON is
@@ -155,16 +156,17 @@ s.removeMetaData("title");
 ## Lightweight scanning (session browser)
 
 To enumerate sessions cheaply — e.g. to render a picker — pass `dontLoadTranscripts = true` to any
-`load` / `forWorkingDirectory` / `allUnder` variant. Each `Session` is then populated only with its
-identity and metadata (`sessionId`, `file`, `agentSession`, `agentId`, `metaData`); `entries`,
-`messages`, `segments`, and `forkMarkers` are left empty and no fork analysis runs (so `families()`
-is empty). This skips parsing every transcript line in the directory.
+`load` / `forWorkingDirectory` / `allUnder` variant. Each `Session` is then populated with its
+identity, working directory, and metadata (`sessionId`, `file`, `agentSession`, `agentId`,
+`workingDirectory`, `metaData`); `entries`, `messages`, `segments`, and `forkMarkers` are left
+empty and no fork analysis runs (so `families()` is empty). This skips parsing every transcript
+line in the directory (only as far as the first `cwd` is read, for the working directory).
 
 ```java
 for (TranscriptDirectory dir : TranscriptDirectory.allUnder(true)) {   // metadata-only scan
     for (Session s : dir.sessions()) {
         String title = (String) s.metaData().getOrDefault("title", s.sessionId());
-        // show `title` in a list; load the chosen session fully before working on it
+        // show `title` + s.workingDirectory() in a list; load the chosen session fully to work on it
     }
 }
 
@@ -177,10 +179,14 @@ later of `lastTranscriptUpdateTime()` and `lastMetaDataUpdateTime()` (the `.json
 file mtimes); `metaFilePath()` exposes the sidecar path itself. These read file times only, so
 they work on a lightweight `Session`.
 
-A lightweight `Session` is for browsing and metadata only: `replay()`, `archiveTo()`, `isFork()`,
-`workingDirectory()` and the like depend on the transcript, so load the session fully (the default,
-`dontLoadTranscripts = false`) before using them. Metadata mutation (`putMetaData` etc.) *does*
-work on a lightweight session, since it needs only `file` and `metaData`.
+`workingDirectory()` is also populated on a lightweight `Session` — the scan reads only as far as
+the first transcript line that carries a `cwd`, rather than parsing the whole file — so a browser
+can show the real directory each session ran in without a full load.
+
+A lightweight `Session` is otherwise for browsing and metadata only: `replay()`, `archiveTo()`,
+`isFork()`, `messages()` and the like depend on the parsed transcript, so load the session fully
+(the default, `dontLoadTranscripts = false`) before using them. Metadata mutation (`putMetaData`
+etc.) *does* work on a lightweight session, since it needs only `file` and `metaData`.
 
 ## Fork recovery
 

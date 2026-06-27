@@ -16,6 +16,7 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
@@ -218,12 +219,15 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * the (relatively expensive) transcript parse and fork analysis.
 	 *
 	 * <p>When {@code dontLoadTranscripts} is {@code true}, each {@link Session} is populated only
-	 * with its identity and metadata — {@link Session#sessionId()}, {@link Session#file()},
-	 * {@link Session#agentSession()}, {@link Session#agentId()} and {@link Session#metaData()} —
-	 * while {@code entries}, {@code messages}, {@code segments} and {@code forkMarkers} are left
-	 * empty and no {@link ConversationFamily} fork analysis is performed (so {@link #families()}
-	 * is empty). This is a fast scan for building a session browser; load a chosen session fully
-	 * (default {@code load}) before replaying, archiving, or inspecting its history.
+	 * with its identity, working directory, and metadata — {@link Session#sessionId()},
+	 * {@link Session#file()}, {@link Session#agentSession()}, {@link Session#agentId()},
+	 * {@link Session#workingDirectory()} and {@link Session#metaData()} — while {@code entries},
+	 * {@code messages}, {@code segments} and {@code forkMarkers} are left empty and no
+	 * {@link ConversationFamily} fork analysis is performed (so {@link #families()} is empty). The
+	 * working directory is still recovered, by reading only as far as the first transcript line
+	 * that carries a {@code cwd} rather than parsing the whole file. This is a fast scan for
+	 * building a session browser; load a chosen session fully (default {@code load}) before
+	 * replaying, archiving, or inspecting its history.
 	 * @param directory the transcript folder to load
 	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only scan)
 	 */
@@ -236,13 +240,14 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 		}
 
 		if (dontLoadTranscripts) {
+			ObjectMapper mapper = new ObjectMapper();
 			List<Session> lite = new ArrayList<>();
 			for (Path f : files) {
 				String sessionId = stripExtension(f.getFileName().toString());
 				boolean agent = sessionId.startsWith("agent-");
 				String agentId = agent ? sessionId.substring("agent-".length()) : null;
-				lite.add(new Session(sessionId, f, agent, agentId, List.of(), List.of(), List.of(), List.of(),
-						readMetaData(f)));
+				lite.add(new Session(sessionId, f, agent, agentId, firstCwd(f, mapper), List.of(), List.of(),
+						List.of(), List.of(), readMetaData(f)));
 			}
 			return new TranscriptDirectory(directory, List.copyOf(lite), List.of());
 		}
@@ -335,8 +340,9 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 						.toList();
 				markers.add(new ForkMarker(parent, child, segments.get(i).startIndex(), siblings));
 			}
-			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), r.entries(),
-					messagesBySession.get(r.sessionId()), segments, List.copyOf(markers), readMetaData(r.file())));
+			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), firstCwd(r.entries()),
+					r.entries(), messagesBySession.get(r.sessionId()), segments, List.copyOf(markers),
+					readMetaData(r.file())));
 		}
 
 		List<ConversationFamily> families = buildFamilies(sessions);
@@ -563,6 +569,43 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	/** Reads the {@code <id>.meta} sidecar for a transcript file (empty map when absent). */
 	private static Map<String, Serializable> readMetaData(Path transcriptFile) throws IOException {
 		return SessionMetadata.readFromFile(SessionMetadata.fileFor(transcriptFile));
+	}
+
+	/** The {@code cwd} of the first transcript entry that records one, for a fully-parsed session. */
+	private static String firstCwd(List<TranscriptEntry> entries) {
+		for (TranscriptEntry e : entries) {
+			String cwd = text(e.raw(), "cwd");
+			if (cwd != null && !cwd.isBlank()) {
+				return cwd;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The {@code cwd} of the first line that records one, read straight from a transcript file
+	 * without parsing the whole thing — the lightweight-load path. Reads line by line and stops at
+	 * the first {@code cwd} (in practice the first line), so it is cheap; non-JSON lines are skipped.
+	 */
+	private static String firstCwd(Path transcriptFile, ObjectMapper mapper) throws IOException {
+		try (BufferedReader reader = Files.newBufferedReader(transcriptFile)) {
+			String line;
+			while ((line = reader.readLine()) != null) {
+				if (line.isBlank()) {
+					continue;
+				}
+				try {
+					String cwd = text(mapper.readTree(line), "cwd");
+					if (cwd != null && !cwd.isBlank()) {
+						return cwd;
+					}
+				}
+				catch (Exception ignored) {
+					// not JSON — skip
+				}
+			}
+		}
+		return null;
 	}
 
 	private static String shortId(String id) {
