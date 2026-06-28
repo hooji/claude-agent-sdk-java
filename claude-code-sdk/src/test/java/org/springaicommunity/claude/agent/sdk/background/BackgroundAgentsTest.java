@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.background;
 
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
 
@@ -49,7 +48,7 @@ class BackgroundAgentsTest {
 
 		assertThat(s.id()).isEqualTo("43a5daa7");
 		assertThat(s.sessionId()).isEqualTo("43a5daa7-040a-4a88-bf1b-9632bfb532c7");
-		assertThat(s.cwd()).isEqualTo(Path.of("/home/user"));
+		assertThat(s.cwd()).isEqualTo("/home/user");
 		assertThat(s.isBackground()).isTrue();
 		assertThat(s.state()).isEqualTo(BackgroundAgentState.DONE);
 		assertThat(s.state().isTerminal()).isTrue();
@@ -87,7 +86,7 @@ class BackgroundAgentsTest {
 			.systemPrompt("be terse")
 			.allowedTools(List.of("Read", "Bash"))
 			.maxBudgetUsd(0.50)
-			.addDir(Path.of("/extra"))
+			.addDir("/extra")
 			.build();
 
 		List<String> cmd = BackgroundAgents.buildDispatchCommand("claude", "do X", opts);

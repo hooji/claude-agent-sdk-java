@@ -73,7 +73,7 @@ Stream responses in real-time using Project Reactor:
 
 ```java
 ClaudeAsyncClient asyncClient = ClaudeClient.async()
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .model(CLIOptions.MODEL_HAIKU)
     .permissionMode(PermissionMode.BYPASS_PERMISSIONS)
     .build();
@@ -105,7 +105,7 @@ hookRegistry.registerPreToolUse("Bash", input -> {
 });
 
 try (ClaudeSyncClient session = ClaudeClient.sync()
-        .workingDirectory(Path.of("."))
+        .workingDirectory(".")
         .model(CLIOptions.MODEL_HAIKU)
         .permissionMode(PermissionMode.DEFAULT)  // Required for hooks
         .hookRegistry(hookRegistry)

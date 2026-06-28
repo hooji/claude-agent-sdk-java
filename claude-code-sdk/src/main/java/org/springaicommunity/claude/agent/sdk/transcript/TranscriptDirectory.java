@@ -43,10 +43,10 @@ import reactor.core.publisher.Flux;
  * Stage 1 of transcript discovery: loads <em>all</em> session transcripts under a directory
  * fully into memory, mirroring the on-disk structure and recovering the fork relationships.
  *
- * <p>After {@link #load(Path)} returns, nothing further needs to be read from disk — all
+ * <p>After {@link #load(String)} returns, nothing further needs to be read from disk — all
  * higher-level functionality (Markdown rendering, replay, navigation, regeneration) is built
  * on this in-memory structure. Every line of every file is retained losslessly (see
- * {@link TranscriptEntry#raw()}), so {@link #regenerate(Path)} can write the transcripts back
+ * {@link TranscriptEntry#raw()}), so {@link #regenerate(String)} can write the transcripts back
  * JSON-equivalently.
  *
  * <p><b>Fork recovery.</b> Claude Code stores a {@code --fork-session} by copying the parent's
@@ -60,46 +60,46 @@ import reactor.core.publisher.Flux;
  * @param sessions every session loaded (main sessions and {@code agent-*} sidechain sessions)
  * @param families independent conversations (grouped by shared root), each with its fork tree
  */
-public record TranscriptDirectory(Path directory, List<Session> sessions, List<ConversationFamily> families) {
+public record TranscriptDirectory(String directory, List<Session> sessions, List<ConversationFamily> families) {
 
 	/**
 	 * Loads the transcripts for the sessions executed in {@code workingDirectory} — the
 	 * directory the user actually ran Claude in, not the storage location. The
 	 * corresponding storage directory under the projects root is resolved via
-	 * {@link #projectsDirFor(Path)}.
+	 * {@link #projectsDirFor(String)}.
 	 * @param workingDirectory the directory Claude sessions were executed in
 	 * @return the loaded transcripts; empty (no sessions) if none exist yet
 	 */
-	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory) throws IOException {
+	public static TranscriptDirectory forWorkingDirectory(String workingDirectory) throws IOException {
 		return forWorkingDirectory(workingDirectory, projectsRoot(), false);
 	}
 
 	/**
-	 * Variant of {@link #forWorkingDirectory(Path)} that can skip parsing the transcripts (see
-	 * {@link #load(Path, boolean)}), for a fast metadata-only scan.
+	 * Variant of {@link #forWorkingDirectory(String)} that can skip parsing the transcripts (see
+	 * {@link #load(String, boolean)}), for a fast metadata-only scan.
 	 */
-	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, boolean dontLoadTranscripts)
+	public static TranscriptDirectory forWorkingDirectory(String workingDirectory, boolean dontLoadTranscripts)
 			throws IOException {
 		return forWorkingDirectory(workingDirectory, projectsRoot(), dontLoadTranscripts);
 	}
 
 	/**
-	 * Variant of {@link #forWorkingDirectory(Path)} with an explicit projects root (the
+	 * Variant of {@link #forWorkingDirectory(String)} with an explicit projects root (the
 	 * directory holding the per-working-directory transcript folders).
 	 */
-	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, Path projectsRoot)
+	public static TranscriptDirectory forWorkingDirectory(String workingDirectory, String projectsRoot)
 			throws IOException {
 		return forWorkingDirectory(workingDirectory, projectsRoot, false);
 	}
 
 	/**
-	 * Variant of {@link #forWorkingDirectory(Path)} with an explicit projects root that can skip
-	 * parsing the transcripts (see {@link #load(Path, boolean)}), for a fast metadata-only scan.
+	 * Variant of {@link #forWorkingDirectory(String)} with an explicit projects root that can skip
+	 * parsing the transcripts (see {@link #load(String, boolean)}), for a fast metadata-only scan.
 	 */
-	public static TranscriptDirectory forWorkingDirectory(Path workingDirectory, Path projectsRoot,
+	public static TranscriptDirectory forWorkingDirectory(String workingDirectory, String projectsRoot,
 			boolean dontLoadTranscripts) throws IOException {
-		Path dir = projectsDirFor(workingDirectory, projectsRoot);
-		if (!Files.isDirectory(dir)) {
+		String dir = projectsDirFor(workingDirectory, projectsRoot);
+		if (!Files.isDirectory(Path.of(dir))) {
 			return new TranscriptDirectory(dir, List.of(), List.of());
 		}
 		return load(dir, dontLoadTranscripts);
@@ -109,31 +109,32 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * Loads the transcripts for <em>every</em> working directory recorded under {@code
 	 * projectsRoot} — i.e. every Claude Code session on this machine — returning one
 	 * {@link TranscriptDirectory} per working directory (folders with no transcripts are
-	 * skipped). The global counterpart to {@link #forWorkingDirectory(Path)}, which scopes to a
+	 * skipped). The global counterpart to {@link #forWorkingDirectory(String)}, which scopes to a
 	 * single working directory.
 	 * @param projectsRoot the projects root holding the per-working-directory transcript folders
 	 * @return one loaded directory per non-empty working-directory folder, ordered by folder name
 	 */
-	public static List<TranscriptDirectory> allUnder(Path projectsRoot) throws IOException {
+	public static List<TranscriptDirectory> allUnder(String projectsRoot) throws IOException {
 		return allUnder(projectsRoot, false);
 	}
 
 	/**
-	 * Variant of {@link #allUnder(Path)} that can skip parsing the transcripts (see
-	 * {@link #load(Path, boolean)}), for a fast metadata-only scan of every working directory.
+	 * Variant of {@link #allUnder(String)} that can skip parsing the transcripts (see
+	 * {@link #load(String, boolean)}), for a fast metadata-only scan of every working directory.
 	 */
-	public static List<TranscriptDirectory> allUnder(Path projectsRoot, boolean dontLoadTranscripts)
+	public static List<TranscriptDirectory> allUnder(String projectsRoot, boolean dontLoadTranscripts)
 			throws IOException {
-		if (!Files.isDirectory(projectsRoot)) {
+		Path projectsRootPath = Path.of(projectsRoot);
+		if (!Files.isDirectory(projectsRootPath)) {
 			return List.of();
 		}
 		List<Path> dirs;
-		try (Stream<Path> s = Files.list(projectsRoot)) {
+		try (Stream<Path> s = Files.list(projectsRootPath)) {
 			dirs = s.filter(Files::isDirectory).sorted().toList();
 		}
 		List<TranscriptDirectory> out = new ArrayList<>();
 		for (Path d : dirs) {
-			TranscriptDirectory loaded = load(d, dontLoadTranscripts);
+			TranscriptDirectory loaded = load(d.toString(), dontLoadTranscripts);
 			if (!loaded.sessions().isEmpty()) {
 				out.add(loaded);
 			}
@@ -141,13 +142,13 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 		return List.copyOf(out);
 	}
 
-	/** {@link #allUnder(Path)} using the default {@link #projectsRoot()}. */
+	/** {@link #allUnder(String)} using the default {@link #projectsRoot()}. */
 	public static List<TranscriptDirectory> allUnder() throws IOException {
 		return allUnder(projectsRoot(), false);
 	}
 
 	/**
-	 * {@link #allUnder(Path, boolean)} using the default {@link #projectsRoot()}, for a fast
+	 * {@link #allUnder(String, boolean)} using the default {@link #projectsRoot()}, for a fast
 	 * metadata-only scan of every working directory.
 	 */
 	public static List<TranscriptDirectory> allUnder(boolean dontLoadTranscripts) throws IOException {
@@ -160,14 +161,14 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * variable (or the {@code claude.config.dir} system property, which takes precedence)
 	 * is set, otherwise {@code ~/.claude/projects}.
 	 */
-	public static Path projectsRoot() {
+	public static String projectsRoot() {
 		String configDir = System.getProperty("claude.config.dir");
 		if (configDir == null || configDir.isBlank()) {
 			configDir = System.getenv("CLAUDE_CONFIG_DIR");
 		}
 		Path base = configDir == null || configDir.isBlank()
 				? Path.of(System.getProperty("user.home"), ".claude") : Path.of(configDir);
-		return base.resolve("projects");
+		return base.resolve("projects").toString();
 	}
 
 	/**
@@ -181,13 +182,13 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * @param workingDirectory the directory Claude sessions were executed in
 	 * @return the transcript folder (which may not exist yet)
 	 */
-	public static Path projectsDirFor(Path workingDirectory) {
+	public static String projectsDirFor(String workingDirectory) {
 		return projectsDirFor(workingDirectory, projectsRoot());
 	}
 
-	/** Variant of {@link #projectsDirFor(Path)} with an explicit projects root. */
-	public static Path projectsDirFor(Path workingDirectory, Path projectsRoot) {
-		return projectsRoot.resolve(sanitize(canonicalize(workingDirectory)));
+	/** Variant of {@link #projectsDirFor(String)} with an explicit projects root. */
+	public static String projectsDirFor(String workingDirectory, String projectsRoot) {
+		return Path.of(projectsRoot).resolve(sanitize(canonicalize(workingDirectory))).toString();
 	}
 
 	/**
@@ -195,22 +196,23 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * non-alphanumeric character of its canonical path with {@code '-'} (verified against
 	 * the CLI: {@code '/'}, {@code '.'}, {@code '_'} and spaces all map to {@code '-'}).
 	 */
-	static String sanitize(Path realPath) {
-		return realPath.toString().replaceAll("[^a-zA-Z0-9]", "-");
+	static String sanitize(String realPath) {
+		return realPath.replaceAll("[^a-zA-Z0-9]", "-");
 	}
 
 	/** Resolves symlinks when the path exists; otherwise just absolutizes/normalizes. */
-	private static Path canonicalize(Path dir) {
+	private static String canonicalize(String dir) {
+		Path dirPath = Path.of(dir);
 		try {
-			return dir.toRealPath();
+			return dirPath.toRealPath().toString();
 		}
 		catch (IOException e) {
-			return dir.toAbsolutePath().normalize();
+			return dirPath.toAbsolutePath().normalize().toString();
 		}
 	}
 
 	/** Loads and analyzes every {@code *.jsonl} transcript directly under {@code directory}. */
-	public static TranscriptDirectory load(Path directory) throws IOException {
+	public static TranscriptDirectory load(String directory) throws IOException {
 		return load(directory, false);
 	}
 
@@ -231,9 +233,9 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * @param directory the transcript folder to load
 	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only scan)
 	 */
-	public static TranscriptDirectory load(Path directory, boolean dontLoadTranscripts) throws IOException {
+	public static TranscriptDirectory load(String directory, boolean dontLoadTranscripts) throws IOException {
 		List<Path> files;
-		try (Stream<Path> s = Files.list(directory)) {
+		try (Stream<Path> s = Files.list(Path.of(directory))) {
 			files = s.filter(p -> p.getFileName().toString().endsWith(".jsonl"))
 					.sorted()
 					.toList();
@@ -246,8 +248,8 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 				String sessionId = stripExtension(f.getFileName().toString());
 				boolean agent = sessionId.startsWith("agent-");
 				String agentId = agent ? sessionId.substring("agent-".length()) : null;
-				lite.add(new Session(sessionId, f, agent, agentId, firstCwd(f, mapper), List.of(), List.of(),
-						List.of(), List.of(), readMetaData(f)));
+				lite.add(new Session(sessionId, f.toString(), agent, agentId, firstCwd(f.toString(), mapper), List.of(),
+						List.of(), List.of(), List.of(), readMetaData(f.toString())));
 			}
 			return new TranscriptDirectory(directory, List.copyOf(lite), List.of());
 		}
@@ -256,7 +258,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 		MessageParser parser = new MessageParser();
 
 		// Local holder for the raw parse, before fork analysis (which needs all files).
-		record Raw(String sessionId, Path file, boolean agentSession, String agentId, List<TranscriptEntry> entries) {
+		record Raw(String sessionId, String file, boolean agentSession, String agentId, List<TranscriptEntry> entries) {
 		}
 
 		List<Raw> raws = new ArrayList<>();
@@ -292,7 +294,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 			String sessionId = stripExtension(f.getFileName().toString());
 			boolean agent = sessionId.startsWith("agent-");
 			String agentId = agent ? sessionId.substring("agent-".length()) : null;
-			raws.add(new Raw(sessionId, f, agent, agentId, List.copyOf(entries)));
+			raws.add(new Raw(sessionId, f.toString(), agent, agentId, List.copyOf(entries)));
 		}
 
 		// Per-session uuid sets + global uuid -> candidate sessions, for provenance.
@@ -446,7 +448,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	public Session mostRecentSession() {
 		return mainSessions().stream().max(Comparator.comparing(s -> {
 			try {
-				return Files.getLastModifiedTime(s.file());
+				return Files.getLastModifiedTime(Path.of(s.file()));
 			}
 			catch (IOException e) {
 				return FileTime.fromMillis(0);
@@ -484,11 +486,12 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * the source (not necessarily byte-identical), which is the basis of the round-trip fidelity
 	 * test.
 	 */
-	public void regenerate(Path destDir) throws IOException {
-		Files.createDirectories(destDir);
+	public void regenerate(String destDir) throws IOException {
+		Path destDirPath = Path.of(destDir);
+		Files.createDirectories(destDirPath);
 		ObjectMapper mapper = new ObjectMapper();
 		for (Session s : sessions) {
-			Path out = destDir.resolve(s.file().getFileName().toString());
+			Path out = destDirPath.resolve(Path.of(s.file()).getFileName().toString());
 			List<String> lines = new ArrayList<>(s.entries().size());
 			for (TranscriptEntry e : s.entries()) {
 				try {
@@ -500,7 +503,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 			}
 			Files.write(out, lines);
 			if (!s.metaData().isEmpty()) {
-				SessionMetadata.writeToFile(SessionMetadata.fileFor(out), s.metaData());
+				SessionMetadata.writeToFile(SessionMetadata.fileFor(out.toString()), s.metaData());
 			}
 		}
 	}
@@ -567,7 +570,7 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	}
 
 	/** Reads the {@code <id>.meta} sidecar for a transcript file (empty map when absent). */
-	private static Map<String, Serializable> readMetaData(Path transcriptFile) throws IOException {
+	private static Map<String, Serializable> readMetaData(String transcriptFile) throws IOException {
 		return SessionMetadata.readFromFile(SessionMetadata.fileFor(transcriptFile));
 	}
 
@@ -587,8 +590,8 @@ public record TranscriptDirectory(Path directory, List<Session> sessions, List<C
 	 * without parsing the whole thing — the lightweight-load path. Reads line by line and stops at
 	 * the first {@code cwd} (in practice the first line), so it is cheap; non-JSON lines are skipped.
 	 */
-	private static String firstCwd(Path transcriptFile, ObjectMapper mapper) throws IOException {
-		try (BufferedReader reader = Files.newBufferedReader(transcriptFile)) {
+	private static String firstCwd(String transcriptFile, ObjectMapper mapper) throws IOException {
+		try (BufferedReader reader = Files.newBufferedReader(Path.of(transcriptFile))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				if (line.isBlank()) {

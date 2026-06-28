@@ -49,7 +49,7 @@ import java.util.Optional;
  *
  * <h2>Basic Usage - Stream Text</h2> <pre>{@code
  * ClaudeAsyncClient client = ClaudeClient.async()
- *     .workingDirectory(Path.of("."))
+ *     .workingDirectory(".")
  *     .model("claude-sonnet-4-20250514")
  *     .build();
  *

@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -49,7 +48,7 @@ class SessionIdCaptureTest {
 
 	@Test
 	void syncClientCapturesSessionIdFromInitMessage() {
-		DefaultClaudeSyncClient client = new DefaultClaudeSyncClient(Path.of("."), null, null, null, null);
+		DefaultClaudeSyncClient client = new DefaultClaudeSyncClient(".", null, null, null, null);
 
 		assertThat(client.getCurrentSessionId()).isNull();
 		client.captureSessionId(initMessage());
@@ -58,7 +57,7 @@ class SessionIdCaptureTest {
 
 	@Test
 	void syncClientCapturesSessionIdFromResultMessage() {
-		DefaultClaudeSyncClient client = new DefaultClaudeSyncClient(Path.of("."), null, null, null, null);
+		DefaultClaudeSyncClient client = new DefaultClaudeSyncClient(".", null, null, null, null);
 
 		client.captureSessionId(resultMessage("another-id"));
 		assertThat(client.getCurrentSessionId()).isEqualTo("another-id");
@@ -70,7 +69,7 @@ class SessionIdCaptureTest {
 
 	@Test
 	void asyncClientCapturesSessionIdFromInitMessage() {
-		DefaultClaudeAsyncClient client = new DefaultClaudeAsyncClient(Path.of("."), null, null, null, null);
+		DefaultClaudeAsyncClient client = new DefaultClaudeAsyncClient(".", null, null, null, null);
 
 		assertThat(client.getCurrentSessionId()).isNull();
 		client.captureSessionId(initMessage());
@@ -79,7 +78,7 @@ class SessionIdCaptureTest {
 
 	@Test
 	void asyncClientCapturesSessionIdFromResultMessage() {
-		DefaultClaudeAsyncClient client = new DefaultClaudeAsyncClient(Path.of("."), null, null, null, null);
+		DefaultClaudeAsyncClient client = new DefaultClaudeAsyncClient(".", null, null, null, null);
 
 		client.captureSessionId(resultMessage("another-id"));
 		assertThat(client.getCurrentSessionId()).isEqualTo("another-id");
@@ -87,7 +86,7 @@ class SessionIdCaptureTest {
 
 	@Test
 	void clientsExposeTheirWorkingDirectory() {
-		Path dir = Path.of("/some/dir");
+		String dir = "/some/dir";
 		assertThat(new DefaultClaudeSyncClient(dir, null, null, null, null).getWorkingDirectory()).isEqualTo(dir);
 		assertThat(new DefaultClaudeAsyncClient(dir, null, null, null, null).getWorkingDirectory()).isEqualTo(dir);
 	}

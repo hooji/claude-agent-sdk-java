@@ -39,7 +39,7 @@ class BackgroundAgentIT extends ClaudeCliTestBase {
 	@Test
 	void dispatchAwaitRetrieveAndArchive(@TempDir Path workDir, @TempDir Path archiveDir) throws Exception {
 		BackgroundAgent agent = BackgroundAgents.dispatch("Reply with exactly the single word: pong. Do not use any tools.",
-				workDir);
+				workDir.toString());
 
 		assertThat(agent.id()).as("short id parsed/resolved").isNotBlank();
 		assertThat(agent.sessionId()).as("full session id resolved").isNotBlank();
@@ -65,9 +65,9 @@ class BackgroundAgentIT extends ClaudeCliTestBase {
 
 		// the finished agent composes with SessionArchive
 		Path archive = archiveDir.resolve("agent.zip");
-		agent.archiveTo(archive);
+		agent.archiveTo(archive.toString());
 		assertThat(Files.exists(archive)).isTrue();
-		assertThat(SessionArchive.readManifest(archive).sessionId()).isEqualTo(agent.sessionId());
+		assertThat(SessionArchive.readManifest(archive.toString()).sessionId()).isEqualTo(agent.sessionId());
 	}
 
 }

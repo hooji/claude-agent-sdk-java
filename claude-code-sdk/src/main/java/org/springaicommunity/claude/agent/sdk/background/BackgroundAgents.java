@@ -72,7 +72,7 @@ public final class BackgroundAgents {
 	}
 
 	/** Dispatches a background agent in {@code workingDirectory} with default options. */
-	public static BackgroundAgent dispatch(String prompt, Path workingDirectory) throws IOException {
+	public static BackgroundAgent dispatch(String prompt, String workingDirectory) throws IOException {
 		return dispatch(prompt, workingDirectory, null);
 	}
 
@@ -87,15 +87,16 @@ public final class BackgroundAgents {
 	 * @return a handle to the dispatched agent
 	 * @throws IOException if the CLI fails or the new agent can't be resolved
 	 */
-	public static BackgroundAgent dispatch(String prompt, Path workingDirectory, CLIOptions options) throws IOException {
+	public static BackgroundAgent dispatch(String prompt, String workingDirectory, CLIOptions options)
+			throws IOException {
 		if (prompt == null || prompt.isBlank()) {
 			throw new IllegalArgumentException("prompt must not be blank");
 		}
-		Path cwd = workingDirectory != null ? workingDirectory : Path.of(System.getProperty("user.dir"));
+		Path cwd = workingDirectory != null ? Path.of(workingDirectory) : Path.of(System.getProperty("user.dir"));
 		if (!Files.isDirectory(cwd)) {
 			throw new IllegalArgumentException("workingDirectory is not a directory: " + cwd);
 		}
-		Path realCwd = cwd.toRealPath();
+		String realCwd = cwd.toRealPath().toString();
 		CommandResult r = run(buildDispatchCommand(claudeBinary(), prompt, options), realCwd, options, DISPATCH_TIMEOUT);
 		if (r.exitCode() != 0) {
 			throw new IOException("`claude --bg` failed (exit " + r.exitCode() + "): " + errorDetail(r));
@@ -208,9 +209,9 @@ public final class BackgroundAgents {
 			}
 			addOpt(c, "--permission-prompt-tool", o.getPermissionPromptToolName());
 			if (o.getAddDirs() != null) {
-				for (Path d : o.getAddDirs()) {
+				for (String d : o.getAddDirs()) {
 					c.add("--add-dir");
-					c.add(d.toString());
+					c.add(d);
 				}
 			}
 			addList(c, "--setting-sources", o.getSettingSources());
@@ -246,7 +247,7 @@ public final class BackgroundAgents {
 		return m.find() ? m.group(1).toLowerCase(Locale.ROOT) : null;
 	}
 
-	private static BackgroundAgentStatus resolveDispatched(String shortId, Path realCwd) throws IOException {
+	private static BackgroundAgentStatus resolveDispatched(String shortId, String realCwd) throws IOException {
 		List<BackgroundAgentStatus> all = statuses(true);
 		if (shortId != null) {
 			for (BackgroundAgentStatus s : all) {
@@ -267,8 +268,8 @@ public final class BackgroundAgents {
 		return id.equals(s.id()) || id.equals(s.sessionId()) || (s.sessionId() != null && s.sessionId().startsWith(id));
 	}
 
-	private static boolean sameDir(Path a, Path b) {
-		return a.toAbsolutePath().normalize().equals(b.toAbsolutePath().normalize());
+	private static boolean sameDir(String a, String b) {
+		return Path.of(a).toAbsolutePath().normalize().equals(Path.of(b).toAbsolutePath().normalize());
 	}
 
 	private static void addOpt(List<String> c, String flag, String value) {
@@ -296,11 +297,11 @@ public final class BackgroundAgents {
 		return s.length() > 500 ? s.substring(0, 500) + "…" : s;
 	}
 
-	private static CommandResult run(List<String> command, Path cwd, CLIOptions options, Duration timeout)
+	private static CommandResult run(List<String> command, String cwd, CLIOptions options, Duration timeout)
 			throws IOException {
 		ProcessBuilder pb = new ProcessBuilder(command);
 		if (cwd != null) {
-			pb.directory(cwd.toFile());
+			pb.directory(Path.of(cwd).toFile());
 		}
 		if (options != null && options.getEnv() != null) {
 			pb.environment().putAll(options.getEnv());

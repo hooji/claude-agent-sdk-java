@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
-import java.nio.file.Path;
 import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -62,7 +61,7 @@ public record TranscriptEntry(int lineNo, String uuid, String parentUuid, String
 	 * get a path without loading content into memory.
 	 * @return referenced absolute file paths, in encounter order (possibly empty)
 	 */
-	public List<Path> referencedFiles() {
+	public List<String> referencedFiles() {
 		return TranscriptPaths.referencedFiles(raw);
 	}
 }

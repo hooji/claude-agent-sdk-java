@@ -46,10 +46,12 @@ final class Transcripts {
 	}
 
 	/** Recursively copies the file tree rooted at {@code source} into {@code target}. */
-	static void copyTree(Path source, Path target) throws IOException {
-		try (Stream<Path> walk = Files.walk(source)) {
+	static void copyTree(String source, String target) throws IOException {
+		Path sourceRoot = Path.of(source);
+		Path targetRoot = Path.of(target);
+		try (Stream<Path> walk = Files.walk(sourceRoot)) {
 			walk.forEach(src -> {
-				Path dst = target.resolve(source.relativize(src).toString());
+				Path dst = targetRoot.resolve(sourceRoot.relativize(src).toString());
 				try {
 					if (Files.isDirectory(src)) {
 						Files.createDirectories(dst);
@@ -67,11 +69,12 @@ final class Transcripts {
 	}
 
 	/** @return whether {@code dir} exists, is a directory, and contains at least one entry. */
-	static boolean isNonEmptyDir(Path dir) throws IOException {
-		if (!Files.isDirectory(dir)) {
+	static boolean isNonEmptyDir(String dir) throws IOException {
+		Path dirPath = Path.of(dir);
+		if (!Files.isDirectory(dirPath)) {
 			return false;
 		}
-		try (Stream<Path> s = Files.list(dir)) {
+		try (Stream<Path> s = Files.list(dirPath)) {
 			return s.findAny().isPresent();
 		}
 	}
@@ -83,14 +86,15 @@ final class Transcripts {
 	 * @throws IllegalArgumentException if the transcript can't be found, or is found at a
 	 * location our sanitization scheme would not have predicted
 	 */
-	static Path locateTranscript(Path projectsRoot, Path srcReal, String sessionId) throws IOException {
-		Path expected = projectsRoot.resolve(TranscriptDirectory.sanitize(srcReal)).resolve(sessionId + ".jsonl");
+	static String locateTranscript(String projectsRoot, String srcReal, String sessionId) throws IOException {
+		Path projectsRootPath = Path.of(projectsRoot);
+		Path expected = projectsRootPath.resolve(TranscriptDirectory.sanitize(srcReal)).resolve(sessionId + ".jsonl");
 		if (Files.isRegularFile(expected)) {
-			return expected;
+			return expected.toString();
 		}
 		// Fallback: search, so we can give a precise error if the sanitization scheme differs.
-		if (Files.isDirectory(projectsRoot)) {
-			try (Stream<Path> dirs = Files.list(projectsRoot)) {
+		if (Files.isDirectory(projectsRootPath)) {
+			try (Stream<Path> dirs = Files.list(projectsRootPath)) {
 				Path found = dirs.map(d -> d.resolve(sessionId + ".jsonl"))
 						.filter(Files::isRegularFile)
 						.findFirst()
@@ -108,9 +112,9 @@ final class Transcripts {
 	}
 
 	/** Reads {@code src}, re-homes every line, and writes the result to {@code dst}. */
-	static void rehomeTranscript(Path src, Path dst, String fromPath, String toPath, String newSessionId)
+	static void rehomeTranscript(String src, String dst, String fromPath, String toPath, String newSessionId)
 			throws IOException {
-		Files.write(dst, rehomeLines(Files.readAllLines(src), fromPath, toPath, newSessionId));
+		Files.write(Path.of(dst), rehomeLines(Files.readAllLines(Path.of(src)), fromPath, toPath, newSessionId));
 	}
 
 	/**

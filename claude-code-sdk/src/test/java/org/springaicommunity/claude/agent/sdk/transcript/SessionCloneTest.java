@@ -42,7 +42,7 @@ class SessionCloneTest {
 		String sid = "11111111-1111-1111-1111-111111111111";
 
 		// A fake source transcript (cwd + a tool-result filePath under the source dir).
-		Path srcProjDir = projects.resolve(SessionClone.sanitize(source.toRealPath()));
+		Path srcProjDir = projects.resolve(SessionClone.sanitize(source.toRealPath().toString()));
 		Files.createDirectories(srcProjDir);
 		ObjectNode l1 = mapper.createObjectNode();
 		l1.put("type", "user");
@@ -62,7 +62,7 @@ class SessionCloneTest {
 		// targetDir provided by @TempDir is empty -> allowed; remove so clone creates it fresh too
 		Files.delete(target);
 
-		SessionClone.Result r = SessionClone.clone(sid, source, target, projects);
+		SessionClone.Result r = SessionClone.clone(sid, source.toString(), target.toString(), projects.toString());
 
 		// 1. the file tree was duplicated
 		assertThat(target.resolve("src/Foo.java")).exists();
@@ -70,13 +70,14 @@ class SessionCloneTest {
 
 		// 2. a new session id + a transcript in the target's projects folder
 		assertThat(r.sessionId()).isNotEqualTo(sid);
-		assertThat(r.transcriptPath()).exists();
-		assertThat(r.transcriptPath())
-				.isEqualTo(projects.resolve(SessionClone.sanitize(target.toRealPath())).resolve(r.sessionId() + ".jsonl"));
+		assertThat(Path.of(r.transcriptPath())).exists();
+		assertThat(r.transcriptPath()).isEqualTo(
+				projects.resolve(SessionClone.sanitize(target.toRealPath().toString())).resolve(r.sessionId() + ".jsonl")
+					.toString());
 
 		// 3. transcript re-homed: sessionId re-stamped, cwd + filePath rewritten to the target dir
 		String tgtReal = target.toRealPath().toString();
-		List<String> lines = Files.readAllLines(r.transcriptPath());
+		List<String> lines = Files.readAllLines(Path.of(r.transcriptPath()));
 		JsonNode c1 = mapper.readTree(lines.get(0));
 		assertThat(c1.get("sessionId").asText()).isEqualTo(r.sessionId());
 		assertThat(c1.get("cwd").asText()).isEqualTo(tgtReal);

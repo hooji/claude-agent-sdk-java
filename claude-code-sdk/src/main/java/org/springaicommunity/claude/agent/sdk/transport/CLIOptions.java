@@ -20,7 +20,6 @@ import org.springaicommunity.claude.agent.sdk.config.PermissionMode;
 import org.springaicommunity.claude.agent.sdk.config.PluginConfig;
 import org.springaicommunity.claude.agent.sdk.mcp.McpServerConfig;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,7 +39,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		// Session resume options
 		boolean continueConversation, String resume,
 		// Advanced options for full Python SDK parity
-		List<Path> addDirs, String settings, String permissionPromptToolName, Map<String, String> extraArgs,
+		List<String> addDirs, String settings, String permissionPromptToolName, Map<String, String> extraArgs,
 		List<PluginConfig> plugins, Map<String, String> env, Integer maxBufferSize, String user,
 		StderrHandler stderrHandler, TransportToolPermissionCallback toolPermissionCallback) {
 
@@ -198,7 +197,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 	}
 
 	// Advanced options getters
-	public List<Path> getAddDirs() {
+	public List<String> getAddDirs() {
 		return addDirs;
 	}
 
@@ -290,7 +289,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		private String resume;
 
 		// Advanced options for full Python SDK parity
-		private List<Path> addDirs = List.of();
+		private List<String> addDirs = List.of();
 
 		private String settings;
 
@@ -488,7 +487,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		 * @param addDirs list of directory paths to add
 		 * @return this builder
 		 */
-		public Builder addDirs(List<Path> addDirs) {
+		public Builder addDirs(List<String> addDirs) {
 			this.addDirs = addDirs != null ? List.copyOf(addDirs) : List.of();
 			return this;
 		}
@@ -498,7 +497,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		 * @param dir directory path to add
 		 * @return this builder
 		 */
-		public Builder addDir(Path dir) {
+		public Builder addDir(String dir) {
 			if (this.addDirs.isEmpty()) {
 				this.addDirs = new ArrayList<>();
 			}

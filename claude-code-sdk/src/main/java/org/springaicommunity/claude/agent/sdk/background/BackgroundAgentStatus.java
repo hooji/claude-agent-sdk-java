@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.background;
 
-import java.nio.file.Path;
 import java.time.Instant;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -40,7 +39,7 @@ import com.fasterxml.jackson.databind.JsonNode;
  * or {@code null}
  * @param pid the OS process id, or {@code null}
  */
-public record BackgroundAgentStatus(String id, String sessionId, Path cwd, String kind, Instant startedAt, String name,
+public record BackgroundAgentStatus(String id, String sessionId, String cwd, String kind, Instant startedAt, String name,
 		BackgroundAgentState state, String activity, Integer pid) {
 
 	/** @return whether this entry is a background agent (vs an interactive session). */
@@ -51,7 +50,7 @@ public record BackgroundAgentStatus(String id, String sessionId, Path cwd, Strin
 	/** Parses one {@code claude agents --json} array element. */
 	static BackgroundAgentStatus from(JsonNode n) {
 		String cwd = text(n, "cwd");
-		return new BackgroundAgentStatus(text(n, "id"), text(n, "sessionId"), cwd == null ? null : Path.of(cwd),
+		return new BackgroundAgentStatus(text(n, "id"), text(n, "sessionId"), cwd,
 				text(n, "kind"), n.hasNonNull("startedAt") ? Instant.ofEpochMilli(n.get("startedAt").asLong()) : null,
 				text(n, "name"), BackgroundAgentState.fromWire(text(n, "state")), text(n, "status"),
 				n.hasNonNull("pid") ? n.get("pid").asInt() : null);

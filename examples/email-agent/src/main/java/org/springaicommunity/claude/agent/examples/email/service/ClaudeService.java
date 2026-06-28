@@ -3,7 +3,6 @@ package org.springaicommunity.claude.agent.examples.email.service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 
 import org.slf4j.Logger;
@@ -38,7 +37,7 @@ public class ClaudeService {
 		log.info("========================================");
 
 		ClaudeAsyncClient client = ClaudeClient.async()
-			.workingDirectory(Path.of(System.getProperty("user.dir")))
+			.workingDirectory(System.getProperty("user.dir"))
 			.systemPrompt(SYSTEM_PROMPT)
 			.timeout(Duration.ofMinutes(10))
 			.permissionMode(PermissionMode.BYPASS_PERMISSIONS)

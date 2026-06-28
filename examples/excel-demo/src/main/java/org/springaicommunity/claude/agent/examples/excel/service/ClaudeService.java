@@ -3,7 +3,6 @@ package org.springaicommunity.claude.agent.examples.excel.service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Duration;
 
 import org.slf4j.Logger;
@@ -52,14 +51,14 @@ public class ClaudeService {
 	 * @param workingDirectory optional working directory for file operations
 	 * @return Flux of text chunks
 	 */
-	public Flux<String> streamText(String prompt, Path workingDirectory) {
+	public Flux<String> streamText(String prompt, String workingDirectory) {
 		log.info("========================================");
 		log.info("STARTING CLAUDE QUERY");
 		log.info("Prompt: {}", truncate(prompt, 200));
 		log.info("Timeout: 10 minutes");
 		log.info("========================================");
 
-		Path effectiveWorkDir = workingDirectory != null ? workingDirectory : Path.of(System.getProperty("user.dir"));
+		String effectiveWorkDir = workingDirectory != null ? workingDirectory : System.getProperty("user.dir");
 		ClaudeAsyncClient client = ClaudeClient.async()
 			.workingDirectory(effectiveWorkDir)
 			.systemPrompt(SYSTEM_PROMPT)
@@ -126,7 +125,7 @@ public class ClaudeService {
 	 */
 	public Flux<Message> streamMessages(String prompt) {
 		ClaudeAsyncClient client = ClaudeClient.async()
-			.workingDirectory(Path.of(System.getProperty("user.dir")))
+			.workingDirectory(System.getProperty("user.dir"))
 			.systemPrompt(SYSTEM_PROMPT)
 			.timeout(Duration.ofMinutes(10))
 			.permissionMode(PermissionMode.BYPASS_PERMISSIONS)

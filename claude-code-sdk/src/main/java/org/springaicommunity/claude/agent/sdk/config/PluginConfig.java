@@ -16,8 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.config;
 
-import java.nio.file.Path;
-
 /**
  * Configuration for Claude Code plugins. Plugins extend Claude with custom commands,
  * agents, skills, and hooks.
@@ -29,7 +27,7 @@ import java.nio.file.Path;
  * @param type the plugin type ("local" only for now)
  * @param path the path to the plugin directory
  */
-public record PluginConfig(String type, Path path) {
+public record PluginConfig(String type, String path) {
 
 	/**
 	 * Create a new PluginConfig with validation.
@@ -49,17 +47,8 @@ public record PluginConfig(String type, Path path) {
 	 * @param path the directory containing the plugin
 	 * @return a new PluginConfig
 	 */
-	public static PluginConfig local(Path path) {
+	public static PluginConfig local(String path) {
 		return new PluginConfig("local", path);
-	}
-
-	/**
-	 * Creates a local plugin configuration from a string path.
-	 * @param pathString the directory path as a string
-	 * @return a new PluginConfig
-	 */
-	public static PluginConfig local(String pathString) {
-		return new PluginConfig("local", Path.of(pathString));
 	}
 
 }

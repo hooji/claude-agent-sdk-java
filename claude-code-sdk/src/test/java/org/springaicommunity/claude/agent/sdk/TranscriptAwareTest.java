@@ -60,8 +60,8 @@ class TranscriptAwareTest {
 	private TranscriptAware client(String currentSessionId) {
 		return new TranscriptAware() {
 			@Override
-			public Path getWorkingDirectory() {
-				return workingDir;
+			public String getWorkingDirectory() {
+				return workingDir.toString();
 			}
 
 			@Override
@@ -114,7 +114,7 @@ class TranscriptAwareTest {
 
 	private Path copyFixtures() throws Exception {
 		Path fixtures = Path.of(getClass().getResource("/transcripts/fork-lineage").toURI());
-		Path transcripts = Files.createDirectories(TranscriptDirectory.projectsDirFor(workingDir));
+		Path transcripts = Files.createDirectories(Path.of(TranscriptDirectory.projectsDirFor(workingDir.toString())));
 		try (var files = Files.list(fixtures)) {
 			for (Path f : files.toList()) {
 				Files.copy(f, transcripts.resolve(f.getFileName().toString()));

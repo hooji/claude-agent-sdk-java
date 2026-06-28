@@ -54,11 +54,12 @@ final class SessionMetadata {
 	}
 
 	/** @return the {@code <id>.meta} sidecar path for a {@code <id>.jsonl} transcript file. */
-	static Path fileFor(Path transcriptFile) {
-		String name = transcriptFile.getFileName().toString();
+	static String fileFor(String transcriptFile) {
+		Path file = Path.of(transcriptFile);
+		String name = file.getFileName().toString();
 		int dot = name.lastIndexOf('.');
 		String base = dot < 0 ? name : name.substring(0, dot);
-		return transcriptFile.resolveSibling(base + EXTENSION);
+		return file.resolveSibling(base + EXTENSION).toString();
 	}
 
 	/**
@@ -67,16 +68,17 @@ final class SessionMetadata {
 	 * @throws IOException if the file exists but cannot be read or deserialized (e.g. a value's
 	 * class is missing) — never swallowed
 	 */
-	static Map<String, Serializable> readFromFile(Path metaFile) throws IOException {
-		if (!Files.isRegularFile(metaFile)) {
+	static Map<String, Serializable> readFromFile(String metaFile) throws IOException {
+		Path file = Path.of(metaFile);
+		if (!Files.isRegularFile(file)) {
 			return new LinkedHashMap<>();
 		}
-		return deserialize(Files.readAllBytes(metaFile));
+		return deserialize(Files.readAllBytes(file));
 	}
 
 	/** Serializes {@code map} and writes it to {@code metaFile} (an empty map writes an empty-map file). */
-	static void writeToFile(Path metaFile, Map<String, Serializable> map) throws IOException {
-		Files.write(metaFile, serialize(map));
+	static void writeToFile(String metaFile, Map<String, Serializable> map) throws IOException {
+		Files.write(Path.of(metaFile), serialize(map));
 	}
 
 	/** Serializes {@code map} as a {@link LinkedHashMap} (preserving iteration order). */

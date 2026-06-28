@@ -17,7 +17,6 @@
 package org.springaicommunity.claude.agent.sdk;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 import org.springaicommunity.claude.agent.sdk.exceptions.ClaudeSDKException;
 import org.springaicommunity.claude.agent.sdk.transcript.Session;
@@ -32,7 +31,7 @@ import org.springaicommunity.claude.agent.sdk.transcript.TranscriptDirectory;
  *
  * <pre>{@code
  * try (ClaudeSyncClient client = ClaudeClient.sync()
- *         .workingDirectory(Path.of("/path/the/user/sees"))
+ *         .workingDirectory("/path/the/user/sees")
  *         .build()) {
  *     client.connectText("Hello");
  *     Session session = client.getSession();           // this session's transcript
@@ -44,7 +43,7 @@ import org.springaicommunity.claude.agent.sdk.transcript.TranscriptDirectory;
  * Callers supply the working directory the session is <em>executed</em> in (what the user
  * sees); the mapping to the actual storage folder under the Claude projects root —
  * including symlink canonicalization and path sanitization — is handled by
- * {@link TranscriptDirectory#projectsDirFor(Path)}.
+ * {@link TranscriptDirectory#projectsDirFor(String)}.
  * </p>
  *
  * <p>
@@ -61,7 +60,7 @@ public interface TranscriptAware {
 	 * @return the working directory, or {@code null} if not configured (the CLI then runs
 	 * in the JVM's current directory)
 	 */
-	Path getWorkingDirectory();
+	String getWorkingDirectory();
 
 	/**
 	 * The id of the session this client is currently talking to, as observed on the wire
@@ -80,9 +79,9 @@ public interface TranscriptAware {
 	 * @throws ClaudeSDKException if the transcripts cannot be read
 	 */
 	default TranscriptDirectory getTranscriptDirectory() {
-		Path workingDirectory = getWorkingDirectory();
+		String workingDirectory = getWorkingDirectory();
 		if (workingDirectory == null) {
-			workingDirectory = Path.of(System.getProperty("user.dir"));
+			workingDirectory = System.getProperty("user.dir");
 		}
 		try {
 			return TranscriptDirectory.forWorkingDirectory(workingDirectory);
@@ -133,7 +132,7 @@ public interface TranscriptAware {
 	 * @throws ClaudeSDKException if there is no such session, its files can't be read, or the
 	 * archive can't be written
 	 */
-	default Path archiveSession(String sessionId, Path targetArchive) {
+	default String archiveSession(String sessionId, String targetArchive) {
 		Session session = getSession(sessionId);
 		if (session == null) {
 			throw new ClaudeSDKException(
@@ -154,7 +153,7 @@ public interface TranscriptAware {
 	 * @return the archive file written
 	 * @throws ClaudeSDKException if there is no session yet, or the archive can't be written
 	 */
-	default Path archiveSession(Path targetArchive) {
+	default String archiveSession(String targetArchive) {
 		Session session = getSession();
 		if (session == null) {
 			throw new ClaudeSDKException("No session to archive yet for working directory " + getWorkingDirectory());

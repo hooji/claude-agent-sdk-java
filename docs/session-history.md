@@ -41,8 +41,8 @@ You never need to compute any of this yourself. Give the SDK the directory *you*
 Claude in, and it resolves the storage folder:
 
 ```java
-Path folder = TranscriptDirectory.projectsDirFor(Path.of("/Users/nat/shared/x"));
-TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory(Path.of("/Users/nat/shared/x"));
+String folder = TranscriptDirectory.projectsDirFor("/Users/nat/shared/x");
+TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory("/Users/nat/shared/x");
 ```
 
 `forWorkingDirectory` returns an **empty** `TranscriptDirectory` (no sessions) when the
@@ -66,7 +66,7 @@ Both `ClaudeSyncClient` and `ClaudeAsyncClient` implement `TranscriptAware`:
 
 ```java
 try (ClaudeSyncClient client = ClaudeClient.sync()
-        .workingDirectory(Path.of("/path/you/see"))
+        .workingDirectory("/path/you/see")
         .build()) {
 
     client.connectText("Remember: the launch code is 7-4-1");
@@ -255,7 +255,7 @@ a VM snapshot copy:
 
 ```java
 SessionClone.Result clone = SessionClone.clone(sessionId,
-        Path.of("/work/original"), Path.of("/work/experiment"));
+        "/work/original", "/work/experiment");
 
 ClaudeSyncClient resumed = ClaudeClient.sync(
         CLIOptions.builder().resume(clone.sessionId()).build())
@@ -293,8 +293,8 @@ Session s = client.getSession();
 s.putMetaData("title", "Doc summarizer");
 s.putMetaData("promptTemplate", "Summarize {{document}} for {{audience}}");
 
-Path file = SessionArchive.create(s.sessionId(), Path.of("/work/original"),
-        Path.of("/backups/summarizer.ccsession.zip"));
+String file = SessionArchive.create(s.sessionId(), "/work/original",
+        "/backups/summarizer.ccsession.zip");
 ```
 
 Restore inflates the working tree into a fresh directory, re-homes the transcript (rewriting every
@@ -302,7 +302,7 @@ path reference from the archived working directory to the new one), and material
 `<sessionId>.meta` sidecar so the restored session keeps its metadata:
 
 ```java
-SessionArchive.RestoreResult r = SessionArchive.restore(file, Path.of("/work/restored"));
+SessionArchive.RestoreResult r = SessionArchive.restore(file, "/work/restored");
 // r.sessionId() == the archived id (keep-id default).
 // restore(file, dir, true) instead mints a new id — a fork-on-restore — and the
 // .meta file is renamed to match the new id.
