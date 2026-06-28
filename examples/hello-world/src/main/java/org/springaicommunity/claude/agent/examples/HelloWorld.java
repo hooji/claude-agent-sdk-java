@@ -31,7 +31,6 @@ import org.springaicommunity.claude.agent.sdk.types.QueryResult;
 import org.springaicommunity.claude.agent.sdk.types.control.HookInput;
 import org.springaicommunity.claude.agent.sdk.types.control.HookOutput;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.CountDownLatch;
@@ -108,7 +107,7 @@ public class HelloWorld {
 			AtomicInteger charCount = new AtomicInteger(0);
 
 			ClaudeAsyncClient asyncClient = ClaudeClient.async()
-				.workingDirectory(Path.of(System.getProperty("user.dir")))
+				.workingDirectory(System.getProperty("user.dir"))
 				.model(CLIOptions.MODEL_HAIKU)
 				.permissionMode(PermissionMode.BYPASS_PERMISSIONS)
 				.timeout(Duration.ofMinutes(2))
@@ -171,7 +170,7 @@ public class HelloWorld {
 
 			// Create and use a sync client with hooks
 			try (ClaudeSyncClient syncClient = ClaudeClient.sync()
-				.workingDirectory(Path.of(System.getProperty("user.dir")))
+				.workingDirectory(System.getProperty("user.dir"))
 				.model(CLIOptions.MODEL_HAIKU)
 				.permissionMode(PermissionMode.DEFAULT) // Required for hooks
 				.hookRegistry(hookRegistry)

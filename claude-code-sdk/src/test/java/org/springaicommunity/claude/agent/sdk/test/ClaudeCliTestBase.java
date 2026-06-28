@@ -153,8 +153,8 @@ public abstract class ClaudeCliTestBase {
 	 * needed.
 	 * @return the working directory path
 	 */
-	protected Path workingDirectory() {
-		return Paths.get(".");
+	protected String workingDirectory() {
+		return ".";
 	}
 
 	/**

@@ -61,7 +61,7 @@ class CLIFlagParityTest {
 	 * Creates a transport for testing command building.
 	 */
 	private StreamingTransport createTransport() {
-		return new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+		return new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 	}
 
 	// ============================================================
@@ -483,7 +483,7 @@ class CLIFlagParityTest {
 		void addDirFlag() {
 			try (StreamingTransport transport = createTransport()) {
 				CLIOptions options = CLIOptions.builder()
-					.addDirs(List.of(Path.of("/workspace/libs"), Path.of("/workspace/docs")))
+					.addDirs(List.of("/workspace/libs", "/workspace/docs"))
 					.build();
 				List<String> cmd = transport.buildStreamingCommand(options);
 

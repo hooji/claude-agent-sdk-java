@@ -19,7 +19,6 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -51,7 +50,7 @@ class SessionArchiveTest {
 		Files.writeString(source.resolve("src/Foo.java"), "class Foo {}");
 		String srcReal = source.toRealPath().toString();
 
-		Path srcProjDir = projects.resolve(TranscriptDirectory.sanitize(source.toRealPath()));
+		Path srcProjDir = projects.resolve(TranscriptDirectory.sanitize(source.toRealPath().toString()));
 		Files.createDirectories(srcProjDir);
 		ObjectNode l1 = mapper.createObjectNode();
 		l1.put("type", "user");
@@ -75,7 +74,7 @@ class SessionArchiveTest {
 
 	/** Loads the seeded session for the default id from the given projects root. */
 	private Session load(Path source, Path projects) throws Exception {
-		return TranscriptDirectory.forWorkingDirectory(source, projects).byId(sid).orElseThrow();
+		return TranscriptDirectory.forWorkingDirectory(source.toString(), projects.toString()).byId(sid).orElseThrow();
 	}
 
 	@Test
@@ -90,11 +89,11 @@ class SessionArchiveTest {
 		session.putMetaData("argSpec", new ArrayList<>(List.of("task", "args")));
 
 		Path archive = tmp.resolve("backup.ccsession.zip");
-		Path written = SessionArchive.create(sid, source, archive, projects);
-		assertThat(written).exists().isEqualTo(archive.toAbsolutePath().normalize());
+		String written = SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(Path.of(written)).exists().isEqualTo(archive.toAbsolutePath().normalize());
 
 		// Peek the manifest without extracting.
-		SessionArchive.Manifest man = SessionArchive.readManifest(archive);
+		SessionArchive.Manifest man = SessionArchive.readManifest(archive.toString());
 		assertThat(man.sessionId()).isEqualTo(sid);
 		assertThat(man.originalWorkingDir()).isEqualTo(source.toRealPath().toString());
 		assertThat(man.messageCount()).isEqualTo(2);
@@ -102,14 +101,15 @@ class SessionArchiveTest {
 		assertThat(man.createdAt()).isNotNull();
 
 		// Metadata round-trips as live objects, in insertion order.
-		Map<String, Serializable> back = SessionArchive.readMetaData(archive);
+		Map<String, Serializable> back = SessionArchive.readMetaData(archive.toString());
 		assertThat(back).containsEntry("promptTemplate", "Do {{task}} with {{args}}");
 		assertThat(back.get("argSpec")).isEqualTo(List.of("task", "args"));
 		assertThat(new ArrayList<>(back.keySet())).containsExactly("promptTemplate", "argSpec");
 
 		// Restore (keep id) into a fresh directory.
 		Path target = tmp.resolve("restored");
-		SessionArchive.RestoreResult r = SessionArchive.restore(archive, target, false, projects);
+		SessionArchive.RestoreResult r = SessionArchive.restore(archive.toString(), target.toString(), false,
+				projects.toString());
 		String tgtReal = target.toRealPath().toString();
 
 		assertThat(r.sessionId()).isEqualTo(sid);
@@ -117,9 +117,9 @@ class SessionArchiveTest {
 		assertThat(Files.readString(target.resolve("src/Foo.java"))).isEqualTo("class Foo {}");
 
 		// Transcript re-homed under the target's projects folder, paths rewritten, id kept.
-		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath()));
-		assertThat(r.transcriptPath()).isEqualTo(tgtProjDir.resolve(sid + ".jsonl"));
-		List<String> lines = Files.readAllLines(r.transcriptPath());
+		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath().toString()));
+		assertThat(r.transcriptPath()).isEqualTo(tgtProjDir.resolve(sid + ".jsonl").toString());
+		List<String> lines = Files.readAllLines(Path.of(r.transcriptPath()));
 		JsonNode c1 = mapper.readTree(lines.get(0));
 		assertThat(c1.get("sessionId").asText()).isEqualTo(sid);
 		assertThat(c1.get("cwd").asText()).isEqualTo(tgtReal);
@@ -132,7 +132,9 @@ class SessionArchiveTest {
 
 		// The .meta sidecar is materialized and the restored session loads its metadata back.
 		assertThat(tgtProjDir.resolve(sid + ".meta")).exists();
-		Session restored = TranscriptDirectory.forWorkingDirectory(target, projects).byId(sid).orElseThrow();
+		Session restored = TranscriptDirectory.forWorkingDirectory(target.toString(), projects.toString())
+			.byId(sid)
+			.orElseThrow();
 		assertThat(restored.metaData()).containsEntry("promptTemplate", "Do {{task}} with {{args}}");
 		assertThat(restored.metaData().get("argSpec")).isEqualTo(List.of("task", "args"));
 	}
@@ -144,22 +146,25 @@ class SessionArchiveTest {
 		load(source, projects).putMetaData("label", "keep me");
 
 		Path archive = tmp.resolve("backup.zip");
-		SessionArchive.create(sid, source, archive, projects);
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
 
 		Path target = tmp.resolve("forked");
-		SessionArchive.RestoreResult r = SessionArchive.restore(archive, target, true, projects);
+		SessionArchive.RestoreResult r = SessionArchive.restore(archive.toString(), target.toString(), true,
+				projects.toString());
 
 		assertThat(r.sessionId()).isNotEqualTo(sid);
-		assertThat(r.transcriptPath().getFileName().toString()).isEqualTo(r.sessionId() + ".jsonl");
-		JsonNode first = mapper.readTree(Files.readAllLines(r.transcriptPath()).get(0));
+		assertThat(Path.of(r.transcriptPath()).getFileName().toString()).isEqualTo(r.sessionId() + ".jsonl");
+		JsonNode first = mapper.readTree(Files.readAllLines(Path.of(r.transcriptPath())).get(0));
 		assertThat(first.get("sessionId").asText()).isEqualTo(r.sessionId());
 		assertThat(first.get("cwd").asText()).isEqualTo(target.toRealPath().toString());
 
 		// The .meta sidecar follows the new id, and the metadata survives.
-		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath()));
+		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath().toString()));
 		assertThat(tgtProjDir.resolve(r.sessionId() + ".meta")).exists();
 		assertThat(tgtProjDir.resolve(sid + ".meta")).doesNotExist();
-		Session restored = TranscriptDirectory.forWorkingDirectory(target, projects).byId(r.sessionId()).orElseThrow();
+		Session restored = TranscriptDirectory.forWorkingDirectory(target.toString(), projects.toString())
+			.byId(r.sessionId())
+			.orElseThrow();
 		assertThat(restored.metaData()).containsEntry("label", "keep me");
 	}
 
@@ -168,17 +173,19 @@ class SessionArchiveTest {
 			throws Exception {
 		seedSession(source, projects);
 		Path archive = tmp.resolve("plain.zip");
-		SessionArchive.create(sid, source, archive, projects);
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
 
-		assertThat(SessionArchive.readManifest(archive).hasMetaData()).isFalse();
-		assertThat(SessionArchive.readMetaData(archive)).isEmpty();
+		assertThat(SessionArchive.readManifest(archive.toString()).hasMetaData()).isFalse();
+		assertThat(SessionArchive.readMetaData(archive.toString())).isEmpty();
 
 		// Restoring an archive with no metadata creates no .meta file; the load yields an empty map.
 		Path target = tmp.resolve("restored");
-		SessionArchive.restore(archive, target, false, projects);
-		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath()));
+		SessionArchive.restore(archive.toString(), target.toString(), false, projects.toString());
+		Path tgtProjDir = projects.resolve(TranscriptDirectory.sanitize(target.toRealPath().toString()));
 		assertThat(tgtProjDir.resolve(sid + ".meta")).doesNotExist();
-		Session restored = TranscriptDirectory.forWorkingDirectory(target, projects).byId(sid).orElseThrow();
+		Session restored = TranscriptDirectory.forWorkingDirectory(target.toString(), projects.toString())
+			.byId(sid)
+			.orElseThrow();
 		assertThat(restored.metaData()).isEmpty();
 	}
 
@@ -186,7 +193,7 @@ class SessionArchiveTest {
 	void refusesToArchiveIntoTheWorkingTree(@TempDir Path source, @TempDir Path projects) throws Exception {
 		seedSession(source, projects);
 		Path inside = source.resolve("backup.zip");
-		assertThatThrownBy(() -> SessionArchive.create(sid, source, inside, projects))
+		assertThatThrownBy(() -> SessionArchive.create(sid, source.toString(), inside.toString(), projects.toString()))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("must not be inside");
 	}
@@ -196,12 +203,13 @@ class SessionArchiveTest {
 			throws Exception {
 		seedSession(source, projects);
 		Path archive = tmp.resolve("b.zip");
-		SessionArchive.create(sid, source, archive, projects);
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
 
 		Path target = tmp.resolve("occupied");
 		Files.createDirectories(target);
 		Files.writeString(target.resolve("existing.txt"), "x");
-		assertThatThrownBy(() -> SessionArchive.restore(archive, target, false, projects))
+		assertThatThrownBy(
+				() -> SessionArchive.restore(archive.toString(), target.toString(), false, projects.toString()))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("must be empty");
 	}
@@ -214,16 +222,16 @@ class SessionArchiveTest {
 
 		// The working directory is recovered from the transcript's cwd.
 		assertThat(session.workingDirectory()).isEqualTo(source.toRealPath().toString());
-		assertThat(session.workingDirectoryPath()).contains(source.toRealPath());
 		session.putMetaData("via", "session");
 
 		Path archive = tmp.resolve("via-session.zip");
-		session.archiveTo(archive);
-		assertThat(SessionArchive.readManifest(archive).sessionId()).isEqualTo(sid);
-		assertThat(SessionArchive.readMetaData(archive)).containsEntry("via", "session");
+		session.archiveTo(archive.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).sessionId()).isEqualTo(sid);
+		assertThat(SessionArchive.readMetaData(archive.toString())).containsEntry("via", "session");
 
 		Path target = tmp.resolve("restored");
-		SessionArchive.RestoreResult r = SessionArchive.restore(archive, target, false, projects);
+		SessionArchive.RestoreResult r = SessionArchive.restore(archive.toString(), target.toString(), false,
+				projects.toString());
 		assertThat(r.sessionId()).isEqualTo(sid);
 		assertThat(target.resolve("src/Foo.java")).exists();
 	}
@@ -237,7 +245,7 @@ class SessionArchiveTest {
 		// Mutate the live map directly, bypassing putMetaData (so the .meta file is never updated).
 		session.metaData().put("forgot", "to write");
 
-		assertThatThrownBy(() -> session.archiveTo(tmp.resolve("x.zip")))
+		assertThatThrownBy(() -> session.archiveTo(tmp.resolve("x.zip").toString()))
 			.isInstanceOf(IllegalStateException.class)
 			.hasMessageContaining("differs from its on-disk .meta");
 	}
@@ -268,7 +276,7 @@ class SessionArchiveTest {
 		Session s = load(source, projects);
 
 		// metaFilePath() points at <id>.meta next to the transcript.
-		assertThat(s.metaFilePath()).isEqualTo(s.file().resolveSibling(sid + ".meta"));
+		assertThat(s.metaFilePath()).isEqualTo(Path.of(s.file()).resolveSibling(sid + ".meta").toString());
 
 		// No metadata yet: transcript time known, meta time null, lastUpdate == transcript time.
 		assertThat(s.lastTranscriptUpdateTime()).isNotNull();
@@ -287,12 +295,12 @@ class SessionArchiveTest {
 		seedSession(source, projects);
 		load(source, projects).putMetaData("title", "kept");
 
-		TranscriptDirectory.forWorkingDirectory(source, projects).regenerate(dest);
+		TranscriptDirectory.forWorkingDirectory(source.toString(), projects.toString()).regenerate(dest.toString());
 
 		// The regenerated directory has both the transcript and the .meta, and reloads with metadata.
 		assertThat(dest.resolve(sid + ".jsonl")).exists();
 		assertThat(dest.resolve(sid + ".meta")).exists();
-		Session reloaded = TranscriptDirectory.load(dest).byId(sid).orElseThrow();
+		Session reloaded = TranscriptDirectory.load(dest.toString()).byId(sid).orElseThrow();
 		assertThat(reloaded.metaData()).containsEntry("title", "kept");
 	}
 
@@ -302,7 +310,7 @@ class SessionArchiveTest {
 		seedSession(source, projects);
 		load(source, projects).putMetaData("name", "My Session");
 
-		TranscriptDirectory lite = TranscriptDirectory.forWorkingDirectory(source, projects, true);
+		TranscriptDirectory lite = TranscriptDirectory.forWorkingDirectory(source.toString(), projects.toString(), true);
 		assertThat(lite.families()).isEmpty();
 		Session s = lite.byId(sid).orElseThrow();
 
@@ -312,7 +320,6 @@ class SessionArchiveTest {
 		assertThat(s.metaData()).containsEntry("name", "My Session");
 		// ...the working directory is recovered without parsing the whole transcript...
 		assertThat(s.workingDirectory()).isEqualTo(source.toRealPath().toString());
-		assertThat(s.workingDirectoryPath()).contains(source.toRealPath());
 		// ...but the transcript itself is not parsed.
 		assertThat(s.entries()).isEmpty();
 		assertThat(s.messages()).isEmpty();
@@ -333,7 +340,7 @@ class SessionArchiveTest {
 		seedSession(sourceA, projects, sid);
 		seedSession(sourceB, projects, idB);
 
-		List<TranscriptDirectory> all = TranscriptDirectory.allUnder(projects);
+		List<TranscriptDirectory> all = TranscriptDirectory.allUnder(projects.toString());
 
 		assertThat(all).hasSize(2);
 		List<String> ids = all.stream()
@@ -356,8 +363,8 @@ class SessionArchiveTest {
 		try {
 			TranscriptAware client = new TranscriptAware() {
 				@Override
-				public Path getWorkingDirectory() {
-					return source;
+				public String getWorkingDirectory() {
+					return source.toString();
 				}
 
 				@Override
@@ -366,9 +373,9 @@ class SessionArchiveTest {
 				}
 			};
 
-			Path archive = client.archiveSession(tmp.resolve("client.zip"));
+			String archive = client.archiveSession(tmp.resolve("client.zip").toString());
 
-			assertThat(archive).exists();
+			assertThat(Path.of(archive)).exists();
 			SessionArchive.Manifest m = SessionArchive.readManifest(archive);
 			assertThat(m.sessionId()).isEqualTo(sid);
 			assertThat(m.originalWorkingDir()).isEqualTo(source.toRealPath().toString());

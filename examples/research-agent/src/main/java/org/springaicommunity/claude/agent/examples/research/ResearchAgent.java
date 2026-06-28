@@ -133,7 +133,7 @@ public class ResearchAgent {
 
 				// Create session with hooks
 				try (ClaudeSyncClient session = ClaudeClient.sync(cliOptions)
-					.workingDirectory(Path.of(System.getProperty("user.dir")))
+					.workingDirectory(System.getProperty("user.dir"))
 					.hookRegistry(hookRegistry)
 					.build()) {
 

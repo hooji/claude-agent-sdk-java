@@ -11,7 +11,7 @@ Partial events are opt-in at client build time:
 
 ```java
 ClaudeAsyncClient client = ClaudeClient.async()
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .includePartialMessages(true)    // maps to --include-partial-messages
     .build();
 ```

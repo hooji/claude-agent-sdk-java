@@ -44,7 +44,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void loadsAllSessions() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		assertThat(d.sessions()).hasSize(3);
 		assertThat(d.byId(A)).isPresent();
 		assertThat(d.byId(B)).isPresent();
@@ -53,7 +53,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void computesForkPartition() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		Session a = d.byId(A).orElseThrow();
 		Session b = d.byId(B).orElseThrow();
 		Session c = d.byId(C).orElseThrow();
@@ -83,7 +83,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void buildsConversationFamilyTree() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		assertThat(d.families()).hasSize(1);
 		ConversationFamily fam = d.families().get(0);
 		assertThat(fam.rootSessionId()).isEqualTo(A);
@@ -105,7 +105,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void markdownDescribesStructure() throws Exception {
-		String md = TranscriptDirectory.load(fixtures()).toMarkdown();
+		String md = TranscriptDirectory.load(fixtures().toString()).toMarkdown();
 		assertThat(md).contains("independent conversations: 1");
 		assertThat(md).contains("original");
 		assertThat(md).contains("forked from");
@@ -114,8 +114,8 @@ class TranscriptDirectoryTest {
 	@Test
 	void regeneratesJsonEquivalent(@TempDir Path tmp) throws Exception {
 		Path src = fixtures();
-		TranscriptDirectory d = TranscriptDirectory.load(src);
-		d.regenerate(tmp);
+		TranscriptDirectory d = TranscriptDirectory.load(src.toString());
+		d.regenerate(tmp.toString());
 
 		ObjectMapper m = new ObjectMapper();
 		for (String name : List.of(A + ".jsonl", B + ".jsonl", C + ".jsonl")) {
@@ -129,7 +129,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void replayEmitsForkMarkersAndHistoryEnd() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		List<Message> replay = d.replayMessages(C);
 
 		List<ForkMarker> markers = replay.stream()
@@ -153,7 +153,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void replayContentFallsInTheRightBranch() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		List<Message> replay = d.replayMessages(C);
 
 		// Concatenate text per branch (split at the fork markers).
@@ -176,7 +176,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void replayEmitsEveryEntryNothingDropped() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		Session c = d.byId(C).orElseThrow();
 		List<Message> replay = d.replayMessages(C);
 
@@ -194,7 +194,7 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void sessionReplaysItself() throws Exception {
-		TranscriptDirectory d = TranscriptDirectory.load(fixtures());
+		TranscriptDirectory d = TranscriptDirectory.load(fixtures().toString());
 		Session c = d.byId(C).orElseThrow();
 
 		// replay lives on the Session; the directory method is a delegating convenience
@@ -219,7 +219,7 @@ class TranscriptDirectoryTest {
 		TranscriptEntry entry = new TranscriptEntry(1, null, null, "attachment", false, null, null, null, raw);
 
 		assertThat(entry.referencedFiles())
-				.containsExactlyInAnyOrder(Path.of("/Users/nat/proj/Foo.java"), Path.of("/Users/nat/proj/Bar.java"));
+				.containsExactlyInAnyOrder("/Users/nat/proj/Foo.java", "/Users/nat/proj/Bar.java");
 
 		// RawTranscriptMessage (what replay emits) exposes the same convenience.
 		RawTranscriptMessage raw2 = new RawTranscriptMessage("attachment", null, raw);

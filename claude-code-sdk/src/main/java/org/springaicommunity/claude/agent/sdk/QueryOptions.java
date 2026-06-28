@@ -19,8 +19,6 @@ package org.springaicommunity.claude.agent.sdk;
 import org.springaicommunity.claude.agent.sdk.config.PermissionMode;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -54,14 +52,14 @@ import java.util.Map;
  */
 public record QueryOptions(String model, String systemPrompt, String appendSystemPrompt, Duration timeout,
 		List<String> allowedTools, List<String> disallowedTools, Integer maxTurns, Double maxBudgetUsd,
-		Path workingDirectory, Integer maxTokens, Integer maxThinkingTokens, String fallbackModel,
+		String workingDirectory, Integer maxTokens, Integer maxThinkingTokens, String fallbackModel,
 		Map<String, Object> jsonSchema) {
 
 	/** Default timeout for queries. */
 	public static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2);
 
 	/** Default working directory (current directory). */
-	public static final Path DEFAULT_WORKING_DIRECTORY = Paths.get(System.getProperty("user.dir"));
+	public static final String DEFAULT_WORKING_DIRECTORY = System.getProperty("user.dir");
 
 	public QueryOptions {
 		if (timeout == null) {
@@ -157,7 +155,7 @@ public record QueryOptions(String model, String systemPrompt, String appendSyste
 
 		private Double maxBudgetUsd;
 
-		private Path workingDirectory = DEFAULT_WORKING_DIRECTORY;
+		private String workingDirectory = DEFAULT_WORKING_DIRECTORY;
 
 		private Integer maxTokens;
 
@@ -235,7 +233,7 @@ public record QueryOptions(String model, String systemPrompt, String appendSyste
 		/**
 		 * Sets the working directory for the query.
 		 */
-		public Builder workingDirectory(Path workingDirectory) {
+		public Builder workingDirectory(String workingDirectory) {
 			this.workingDirectory = workingDirectory;
 			return this;
 		}

@@ -119,7 +119,7 @@ public final class SessionArchive {
 	 * @param transcriptPath the re-homed transcript file (under the projects root)
 	 * @param manifest the archive's manifest
 	 */
-	public record RestoreResult(String sessionId, Path workingDirectory, Path transcriptPath, Manifest manifest) {
+	public record RestoreResult(String sessionId, String workingDirectory, String transcriptPath, Manifest manifest) {
 	}
 
 	/**
@@ -127,7 +127,7 @@ public final class SessionArchive {
 	 * using the default Claude projects root.
 	 * @return the archive file path actually written
 	 */
-	public static Path create(String sessionId, Path workingDir, Path targetArchive) throws IOException {
+	public static String create(String sessionId, String workingDir, String targetArchive) throws IOException {
 		return create(sessionId, workingDir, targetArchive, TranscriptDirectory.projectsRoot());
 	}
 
@@ -139,17 +139,18 @@ public final class SessionArchive {
 	 * @throws IllegalArgumentException if the working dir/transcript can't be found or the target
 	 * archive would sit inside the working tree being captured
 	 */
-	public static Path create(String sessionId, Path workingDir, Path targetArchive, Path projectsRoot)
+	public static String create(String sessionId, String workingDir, String targetArchive, String projectsRoot)
 			throws IOException {
-		if (!Files.isDirectory(workingDir)) {
+		Path workingDirPath = Path.of(workingDir);
+		if (!Files.isDirectory(workingDirPath)) {
 			throw new IllegalArgumentException("workingDir is not a directory: " + workingDir);
 		}
-		Path srcReal = workingDir.toRealPath();
-		Path transcript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
+		String srcReal = workingDirPath.toRealPath().toString();
+		String transcript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
 
 		// The archive must live outside the tree we're about to walk, or it would try to
 		// capture itself mid-write.
-		Path archiveAbs = targetArchive.toAbsolutePath().normalize();
+		Path archiveAbs = Path.of(targetArchive).toAbsolutePath().normalize();
 		if (archiveAbs.startsWith(srcReal)) {
 			throw new IllegalArgumentException("targetArchive must not be inside workingDir: " + targetArchive);
 		}
@@ -159,31 +160,31 @@ public final class SessionArchive {
 
 		// The metadata sidecar travels verbatim — copied as bytes, never deserialized here, so
 		// creating an archive does not require the metadata value classes on the classpath.
-		Path metaFile = SessionMetadata.fileFor(transcript);
+		Path metaFile = Path.of(SessionMetadata.fileFor(transcript));
 		byte[] metaBytes = Files.isRegularFile(metaFile) ? Files.readAllBytes(metaFile) : null;
 
-		ObjectNode manifest = buildManifest(sessionId, srcReal.toString(), countMessages(transcript), metaBytes != null);
+		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null);
 
 		try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveAbs))) {
 			writeBytes(zip, MANIFEST, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
 			if (metaBytes != null) {
 				writeBytes(zip, METADATA, metaBytes);
 			}
-			writeBytes(zip, TRANSCRIPT_PREFIX + sessionId + ".jsonl", Files.readAllBytes(transcript));
-			Path aux = transcript.getParent().resolve(sessionId);
+			writeBytes(zip, TRANSCRIPT_PREFIX + sessionId + ".jsonl", Files.readAllBytes(Path.of(transcript)));
+			Path aux = Path.of(transcript).getParent().resolve(sessionId);
 			if (Files.isDirectory(aux)) {
-				addTree(zip, aux, TRANSCRIPT_PREFIX + sessionId + "/");
+				addTree(zip, aux.toString(), TRANSCRIPT_PREFIX + sessionId + "/");
 			}
 			addTree(zip, srcReal, WORKDIR_PREFIX);
 		}
-		return archiveAbs;
+		return archiveAbs.toString();
 	}
 
 	/**
 	 * Restores an archive into the fresh working directory {@code targetWorkingDir}, keeping the
 	 * original session id, using the default projects root.
 	 */
-	public static RestoreResult restore(Path archive, Path targetWorkingDir) throws IOException {
+	public static RestoreResult restore(String archive, String targetWorkingDir) throws IOException {
 		return restore(archive, targetWorkingDir, false, TranscriptDirectory.projectsRoot());
 	}
 
@@ -191,7 +192,8 @@ public final class SessionArchive {
 	 * Restores an archive into {@code targetWorkingDir}, optionally minting a new session id
 	 * (a "fork on restore"), using the default projects root.
 	 */
-	public static RestoreResult restore(Path archive, Path targetWorkingDir, boolean newSessionId) throws IOException {
+	public static RestoreResult restore(String archive, String targetWorkingDir, boolean newSessionId)
+			throws IOException {
 		return restore(archive, targetWorkingDir, newSessionId, TranscriptDirectory.projectsRoot());
 	}
 
@@ -206,12 +208,13 @@ public final class SessionArchive {
 	 * @throws IllegalArgumentException if the target is non-empty, or (when keeping the id) a
 	 * transcript with that id already exists at the destination
 	 */
-	public static RestoreResult restore(Path archive, Path targetWorkingDir, boolean newSessionId, Path projectsRoot)
-			throws IOException {
-		if (!Files.isRegularFile(archive)) {
+	public static RestoreResult restore(String archive, String targetWorkingDir, boolean newSessionId,
+			String projectsRoot) throws IOException {
+		if (!Files.isRegularFile(Path.of(archive))) {
 			throw new IllegalArgumentException("archive is not a file: " + archive);
 		}
-		if (Files.exists(targetWorkingDir) && Transcripts.isNonEmptyDir(targetWorkingDir)) {
+		Path targetWorkingDirPath = Path.of(targetWorkingDir);
+		if (Files.exists(targetWorkingDirPath) && Transcripts.isNonEmptyDir(targetWorkingDir)) {
 			throw new IllegalArgumentException("targetWorkingDir must be empty or non-existent: " + targetWorkingDir);
 		}
 		Manifest manifest = readManifest(archive);
@@ -219,12 +222,12 @@ public final class SessionArchive {
 			throw new IOException("Archive manifest is missing sessionId/originalWorkingDir: " + archive);
 		}
 
-		Files.createDirectories(targetWorkingDir);
-		Path targetReal = targetWorkingDir.toRealPath();
+		Files.createDirectories(targetWorkingDirPath);
+		String targetReal = targetWorkingDirPath.toRealPath().toString();
 		String origId = manifest.sessionId();
 		String restoreId = newSessionId ? UUID.randomUUID().toString() : origId;
 
-		Path targetProjectsDir = projectsRoot.resolve(TranscriptDirectory.sanitize(targetReal));
+		Path targetProjectsDir = Path.of(projectsRoot).resolve(TranscriptDirectory.sanitize(targetReal));
 		Files.createDirectories(targetProjectsDir);
 		Path targetTranscript = targetProjectsDir.resolve(restoreId + ".jsonl");
 		if (Files.exists(targetTranscript)) {
@@ -233,13 +236,13 @@ public final class SessionArchive {
 		}
 
 		String fromPath = manifest.originalWorkingDir();
-		String toPath = targetReal.toString();
-		Path auxDir = targetProjectsDir.resolve(restoreId);
+		String toPath = targetReal;
+		String auxDir = targetProjectsDir.resolve(restoreId).toString();
 		Path targetMeta = targetProjectsDir.resolve(restoreId + SessionMetadata.EXTENSION);
 		String transcriptFileEntry = TRANSCRIPT_PREFIX + origId + ".jsonl";
 		String auxPrefix = TRANSCRIPT_PREFIX + origId + "/";
 
-		try (ZipFile zip = new ZipFile(archive.toFile())) {
+		try (ZipFile zip = new ZipFile(archive)) {
 			Enumeration<? extends ZipEntry> entries = zip.entries();
 			while (entries.hasMoreElements()) {
 				ZipEntry e = entries.nextElement();
@@ -272,15 +275,15 @@ public final class SessionArchive {
 				}
 			}
 		}
-		return new RestoreResult(restoreId, targetWorkingDir, targetTranscript, manifest);
+		return new RestoreResult(restoreId, targetWorkingDir, targetTranscript.toString(), manifest);
 	}
 
 	/**
 	 * Reads an archive's {@link Manifest} (provenance) without extracting it or touching its
 	 * serialized metadata.
 	 */
-	public static Manifest readManifest(Path archive) throws IOException {
-		try (ZipFile zip = new ZipFile(archive.toFile())) {
+	public static Manifest readManifest(String archive) throws IOException {
+		try (ZipFile zip = new ZipFile(archive)) {
 			ZipEntry e = zip.getEntry(MANIFEST);
 			if (e == null) {
 				throw new IOException("Not a session archive (missing " + MANIFEST + "): " + archive);
@@ -300,8 +303,8 @@ public final class SessionArchive {
 	 * metadata value classes on the classpath.
 	 * @throws IOException if the archive can't be read, or a value class is missing
 	 */
-	public static Map<String, Serializable> readMetaData(Path archive) throws IOException {
-		try (ZipFile zip = new ZipFile(archive.toFile())) {
+	public static Map<String, Serializable> readMetaData(String archive) throws IOException {
+		try (ZipFile zip = new ZipFile(archive)) {
 			ZipEntry e = zip.getEntry(METADATA);
 			if (e == null) {
 				return new LinkedHashMap<>();
@@ -327,9 +330,9 @@ public final class SessionArchive {
 	}
 
 	/** Counts conversation messages (uuid-bearing lines), the same notion as {@code Session.messages()}. */
-	private static int countMessages(Path transcript) throws IOException {
+	private static int countMessages(String transcript) throws IOException {
 		int n = 0;
-		for (String line : Files.readAllLines(transcript)) {
+		for (String line : Files.readAllLines(Path.of(transcript))) {
 			if (line.isBlank()) {
 				continue;
 			}
@@ -346,13 +349,14 @@ public final class SessionArchive {
 	}
 
 	/** Adds every file under {@code root} to the zip, prefixing entry names with {@code entryPrefix}. */
-	private static void addTree(ZipOutputStream zip, Path root, String entryPrefix) throws IOException {
+	private static void addTree(ZipOutputStream zip, String root, String entryPrefix) throws IOException {
+		Path rootPath = Path.of(root);
 		List<Path> paths;
-		try (Stream<Path> walk = Files.walk(root)) {
+		try (Stream<Path> walk = Files.walk(rootPath)) {
 			paths = walk.sorted().toList();
 		}
 		for (Path p : paths) {
-			String rel = root.relativize(p).toString().replace('\\', '/');
+			String rel = rootPath.relativize(p).toString().replace('\\', '/');
 			if (rel.isEmpty()) {
 				continue; // the root itself
 			}
@@ -374,25 +378,26 @@ public final class SessionArchive {
 		zip.closeEntry();
 	}
 
-	private static void extract(ZipFile zip, ZipEntry e, Path dst) throws IOException {
+	private static void extract(ZipFile zip, ZipEntry e, String dst) throws IOException {
+		Path dstPath = Path.of(dst);
 		if (e.isDirectory()) {
-			Files.createDirectories(dst);
+			Files.createDirectories(dstPath);
 			return;
 		}
-		Files.createDirectories(dst.getParent());
+		Files.createDirectories(dstPath.getParent());
 		try (InputStream in = zip.getInputStream(e)) {
-			Files.copy(in, dst, StandardCopyOption.REPLACE_EXISTING);
+			Files.copy(in, dstPath, StandardCopyOption.REPLACE_EXISTING);
 		}
 	}
 
 	/** Resolves {@code rel} under {@code base}, refusing entries that escape it (zip-slip guard). */
-	private static Path safeResolve(Path base, String rel) {
-		Path baseNorm = base.normalize();
+	private static String safeResolve(String base, String rel) {
+		Path baseNorm = Path.of(base).normalize();
 		Path resolved = baseNorm.resolve(rel).normalize();
 		if (!resolved.startsWith(baseNorm)) {
 			throw new IllegalArgumentException("Illegal archive entry escapes the target directory: " + rel);
 		}
-		return resolved;
+		return resolved.toString();
 	}
 
 	private static List<String> splitLines(byte[] bytes) {

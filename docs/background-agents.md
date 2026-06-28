@@ -14,7 +14,7 @@ immediately, poll its state, and read the result from the on-disk transcript onc
 ```java
 BackgroundAgent agent = BackgroundAgents.dispatch(
         "Update the changelog for the latest release and summarize what changed.",
-        Path.of("/work/myrepo"));          // returns immediately
+        "/work/myrepo");                   // returns immediately
 
 String id = agent.id();                    // short id (e.g. "43a5daa7"), used by claude logs/stop
 String sessionId = agent.sessionId();      // full session id (the transcript filename)

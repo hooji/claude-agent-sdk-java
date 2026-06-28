@@ -105,7 +105,7 @@ public class StreamingTransport implements AutoCloseable {
 
 	private final String claudeCommand;
 
-	private final Path workingDirectory;
+	private final String workingDirectory;
 
 	private final Duration defaultTimeout;
 
@@ -128,7 +128,7 @@ public class StreamingTransport implements AutoCloseable {
 	private volatile boolean isClosing = false;
 
 	/** Temp file for MCP config — written before session start, deleted on close. */
-	private volatile Path mcpConfigFile;
+	private volatile String mcpConfigFile;
 
 	/** Stderr handler for the current session (may be null if using default logging). */
 	private volatile StderrHandler currentStderrHandler;
@@ -181,11 +181,11 @@ public class StreamingTransport implements AutoCloseable {
 	// Constructors
 	// ============================================================
 
-	public StreamingTransport(Path workingDirectory) {
+	public StreamingTransport(String workingDirectory) {
 		this(workingDirectory, Duration.ofMinutes(10), null);
 	}
 
-	public StreamingTransport(Path workingDirectory, Duration defaultTimeout) {
+	public StreamingTransport(String workingDirectory, Duration defaultTimeout) {
 		this(workingDirectory, defaultTimeout, null);
 	}
 
@@ -196,7 +196,7 @@ public class StreamingTransport implements AutoCloseable {
 	 * @param claudePath optional path to Claude CLI executable (auto-discovers if null)
 	 * @throws IllegalArgumentException if workingDirectory or defaultTimeout is null
 	 */
-	public StreamingTransport(Path workingDirectory, Duration defaultTimeout, String claudePath) {
+	public StreamingTransport(String workingDirectory, Duration defaultTimeout, String claudePath) {
 		// MCP SDK pattern: strict validation for required arguments
 		if (workingDirectory == null) {
 			throw new IllegalArgumentException("workingDirectory must not be null");
@@ -348,7 +348,7 @@ public class StreamingTransport implements AutoCloseable {
 
 			// Start process using ProcessBuilder
 			ProcessBuilder pb = new ProcessBuilder(command);
-			pb.directory(workingDirectory.toFile());
+			pb.directory(Path.of(workingDirectory).toFile());
 			pb.environment().putAll(env);
 			process = pb.start();
 
@@ -516,10 +516,10 @@ public class StreamingTransport implements AutoCloseable {
 				Map<String, Object> serversForCli = buildMcpConfigForCli(options.getMcpServers());
 				if (!serversForCli.isEmpty()) {
 					String mcpConfigJson = objectMapper.writeValueAsString(Map.of("mcpServers", serversForCli));
-					this.mcpConfigFile = Files.createTempFile("claude-mcp-", ".json");
-					Files.writeString(this.mcpConfigFile, mcpConfigJson);
+					this.mcpConfigFile = Files.createTempFile("claude-mcp-", ".json").toString();
+					Files.writeString(Path.of(this.mcpConfigFile), mcpConfigJson);
 					command.add("--mcp-config");
-					command.add(this.mcpConfigFile.toString());
+					command.add(this.mcpConfigFile);
 					logger.debug("Wrote MCP config to temp file: {}", this.mcpConfigFile);
 				}
 			}
@@ -560,7 +560,7 @@ public class StreamingTransport implements AutoCloseable {
 		if (options.getAddDirs() != null && !options.getAddDirs().isEmpty()) {
 			for (var dir : options.getAddDirs()) {
 				command.add("--add-dir");
-				command.add(dir.toString());
+				command.add(dir);
 			}
 		}
 
@@ -595,7 +595,7 @@ public class StreamingTransport implements AutoCloseable {
 		if (options.getPlugins() != null && !options.getPlugins().isEmpty()) {
 			for (var plugin : options.getPlugins()) {
 				command.add("--plugin-dir");
-				command.add(plugin.path().toString());
+				command.add(plugin.path());
 			}
 		}
 
@@ -1170,7 +1170,7 @@ public class StreamingTransport implements AutoCloseable {
 		// Clean up MCP config temp file
 		if (mcpConfigFile != null) {
 			try {
-				Files.deleteIfExists(mcpConfigFile);
+				Files.deleteIfExists(Path.of(mcpConfigFile));
 				logger.debug("Deleted MCP config temp file: {}", mcpConfigFile);
 			}
 			catch (IOException e) {

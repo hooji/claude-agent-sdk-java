@@ -39,7 +39,7 @@ import java.util.Map;
  * </p>
  * <pre>{@code
  * try (ClaudeSyncClient client = ClaudeClient.sync()
- *         .workingDirectory(Path.of("."))
+ *         .workingDirectory(".")
  *         .build()) {
  *
  *     client.connect("My favorite color is blue. Remember this.");

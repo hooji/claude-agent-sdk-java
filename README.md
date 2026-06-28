@@ -212,7 +212,7 @@ import org.springaicommunity.claude.agent.sdk.ClaudeClient;
 import org.springaicommunity.claude.agent.sdk.ClaudeSyncClient;
 
 try (ClaudeSyncClient client = ClaudeClient.sync()
-        .workingDirectory(Path.of("."))
+        .workingDirectory(".")
         .model("claude-sonnet-4-20250514")
         .build()) {
 
@@ -232,7 +232,7 @@ When you need message metadata, tool use details, or cost information:
 
 ```java
 try (ClaudeSyncClient client = ClaudeClient.sync()
-        .workingDirectory(Path.of("."))
+        .workingDirectory(".")
         .build()) {
 
     // For-each with good toString() on all message types
@@ -259,7 +259,7 @@ hookRegistry.registerPreToolUse("Bash", input -> {
 });
 
 try (ClaudeSyncClient client = ClaudeClient.sync()
-        .workingDirectory(Path.of("."))
+        .workingDirectory(".")
         .permissionMode(PermissionMode.DEFAULT)
         .hookRegistry(hookRegistry)
         .build()) {
@@ -275,7 +275,7 @@ For reactive applications using Project Reactor:
 
 ```java
 ClaudeAsyncClient client = ClaudeClient.async()
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .model("claude-sonnet-4-20250514")
     .permissionMode(PermissionMode.BYPASS_PERMISSIONS)
     .build();
@@ -314,7 +314,7 @@ For typewriter-style UIs, enable partial messages and stream incremental text de
 
 ```java
 ClaudeAsyncClient client = ClaudeClient.async()
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .includePartialMessages(true)   // required: maps to --include-partial-messages
     .build();
 
@@ -333,7 +333,7 @@ Claude Code stores every session's transcript on disk. Both clients implement `T
 
 ```java
 try (ClaudeSyncClient client = ClaudeClient.sync()
-        .workingDirectory(Path.of("/path/you/see"))
+        .workingDirectory("/path/you/see")
         .build()) {
 
     String answer = client.connectText("Hello");
@@ -348,7 +348,7 @@ The `transcript` package also works standalone — no client needed:
 
 ```java
 // All sessions for a working directory, with fork lineage recovered
-TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory(Path.of("/path/you/see"));
+TranscriptDirectory dir = TranscriptDirectory.forWorkingDirectory("/path/you/see");
 System.out.println(dir.toMarkdown());    // conversation tree, forks, sub-agents
 
 // Replay a session's full history as SDK Message objects
@@ -356,7 +356,7 @@ dir.replayMessages(sessionId).forEach(System.out::println);
 
 // Clone a session: conversation AND working-directory file state together
 SessionClone.Result clone = SessionClone.clone(sessionId,
-    Path.of("/original/dir"), Path.of("/clone/dir"));
+    "/original/dir", "/clone/dir");
 // resume it with: ClaudeClient.sync(CLIOptions.builder().resume(clone.sessionId()).build())
 //                 .workingDirectory(clone.workingDirectory())...
 ```
@@ -370,7 +370,7 @@ Full details — storage layout, fork recovery, replay semantics, cloning vs `--
 ```java
 // Via ClaudeClient builder
 ClaudeSyncClient client = ClaudeClient.sync()
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .model("claude-sonnet-4-20250514")
     .systemPrompt("You are a helpful assistant")
     .permissionMode(PermissionMode.DEFAULT)
@@ -390,7 +390,7 @@ CLIOptions options = CLIOptions.builder()
     .build();
 
 ClaudeSyncClient client = ClaudeClient.sync(options)
-    .workingDirectory(Path.of("."))
+    .workingDirectory(".")
     .build();
 ```
 

@@ -26,7 +26,6 @@ import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 import org.springaicommunity.claude.agent.sdk.types.control.HookEvent;
 import org.springaicommunity.claude.agent.sdk.types.control.HookOutput;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
@@ -37,11 +36,11 @@ import static org.assertj.core.api.Assertions.*;
  */
 class ClaudeSyncClientTest {
 
-	private Path workingDirectory;
+	private String workingDirectory;
 
 	@BeforeEach
 	void setUp() {
-		workingDirectory = Path.of(System.getProperty("user.dir"));
+		workingDirectory = System.getProperty("user.dir");
 	}
 
 	@Nested

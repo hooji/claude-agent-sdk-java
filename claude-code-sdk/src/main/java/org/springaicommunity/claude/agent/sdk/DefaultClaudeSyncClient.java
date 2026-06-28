@@ -48,7 +48,6 @@ import org.springaicommunity.claude.agent.sdk.permission.ToolPermissionContext;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.MonoSink;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -81,7 +80,7 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 
 	private static final String DEFAULT_SESSION_ID = "default";
 
-	private final Path workingDirectory;
+	private final String workingDirectory;
 
 	private final CLIOptions options;
 
@@ -138,7 +137,7 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 	 * @param claudePath optional path to Claude CLI
 	 * @param hookRegistry optional hook registry
 	 */
-	public DefaultClaudeSyncClient(Path workingDirectory, CLIOptions options, Duration timeout, String claudePath,
+	public DefaultClaudeSyncClient(String workingDirectory, CLIOptions options, Duration timeout, String claudePath,
 			HookRegistry hookRegistry) {
 		this.workingDirectory = workingDirectory;
 		this.options = options != null ? options : CLIOptions.builder().build();
@@ -428,7 +427,7 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 	}
 
 	@Override
-	public Path getWorkingDirectory() {
+	public String getWorkingDirectory() {
 		return workingDirectory;
 	}
 

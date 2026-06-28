@@ -17,7 +17,6 @@
 package org.springaicommunity.claude.agent.sdk.background;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
@@ -43,9 +42,9 @@ public final class BackgroundAgent {
 
 	private final String sessionId;
 
-	private final Path workingDirectory;
+	private final String workingDirectory;
 
-	BackgroundAgent(String id, String sessionId, Path workingDirectory) {
+	BackgroundAgent(String id, String sessionId, String workingDirectory) {
 		this.id = id;
 		this.sessionId = sessionId;
 		this.workingDirectory = workingDirectory;
@@ -62,7 +61,7 @@ public final class BackgroundAgent {
 	}
 
 	/** @return the working directory the agent runs in. */
-	public Path workingDirectory() {
+	public String workingDirectory() {
 		return workingDirectory;
 	}
 
@@ -148,7 +147,7 @@ public final class BackgroundAgent {
 	 * @return the archive file written
 	 * @throws IllegalStateException if the agent's session id is not known
 	 */
-	public Path archiveTo(Path targetArchive) throws IOException {
+	public String archiveTo(String targetArchive) throws IOException {
 		if (sessionId == null) {
 			throw new IllegalStateException("Cannot archive a background agent whose session id is unknown");
 		}

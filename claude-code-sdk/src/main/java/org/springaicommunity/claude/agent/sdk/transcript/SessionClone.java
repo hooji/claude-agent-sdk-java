@@ -52,7 +52,7 @@ public final class SessionClone {
 	 * @param workingDirectory the clone's working directory (a copy of the source tree)
 	 * @param transcriptPath the re-homed transcript file
 	 */
-	public record Result(String sessionId, Path workingDirectory, Path transcriptPath) {
+	public record Result(String sessionId, String workingDirectory, String transcriptPath) {
 	}
 
 	/**
@@ -60,7 +60,7 @@ public final class SessionClone {
 	 * {@code targetDir}, using the default Claude projects root (see
 	 * {@link TranscriptDirectory#projectsRoot()}).
 	 */
-	public static Result clone(String sessionId, Path sourceDir, Path targetDir) throws IOException {
+	public static Result clone(String sessionId, String sourceDir, String targetDir) throws IOException {
 		return clone(sessionId, sourceDir, targetDir, TranscriptDirectory.projectsRoot());
 	}
 
@@ -71,20 +71,24 @@ public final class SessionClone {
 	 * @throws IllegalArgumentException if the source session/transcript can't be found, the
 	 * sanitization scheme doesn't match, or the target is unusable
 	 */
-	public static Result clone(String sessionId, Path sourceDir, Path targetDir, Path projectsRoot) throws IOException {
-		if (!Files.isDirectory(sourceDir)) {
+	public static Result clone(String sessionId, String sourceDir, String targetDir, String projectsRoot)
+			throws IOException {
+		Path sourceDirPath = Path.of(sourceDir);
+		if (!Files.isDirectory(sourceDirPath)) {
 			throw new IllegalArgumentException("sourceDir is not a directory: " + sourceDir);
 		}
-		Path srcReal = sourceDir.toRealPath();
+		String srcReal = sourceDirPath.toRealPath().toString();
 
-		Path srcTranscript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
+		String srcTranscript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
 
-		if (Files.exists(targetDir) && Transcripts.isNonEmptyDir(targetDir)) {
+		Path targetDirPath = Path.of(targetDir);
+		if (Files.exists(targetDirPath) && Transcripts.isNonEmptyDir(targetDir)) {
 			throw new IllegalArgumentException("targetDir must be empty or non-existent: " + targetDir);
 		}
-		Files.createDirectories(targetDir);
-		Path targetReal = targetDir.toRealPath();
-		if (targetReal.startsWith(srcReal)) {
+		Files.createDirectories(targetDirPath);
+		Path targetRealPath = targetDirPath.toRealPath();
+		String targetReal = targetRealPath.toString();
+		if (targetRealPath.startsWith(srcReal)) {
 			throw new IllegalArgumentException("targetDir must not be inside sourceDir");
 		}
 
@@ -93,30 +97,30 @@ public final class SessionClone {
 
 		// 2. Re-home a copy of the transcript under a new session id.
 		String newId = UUID.randomUUID().toString();
-		Path targetProjectsDir = projectsRoot.resolve(sanitize(targetReal));
+		Path targetProjectsDir = Path.of(projectsRoot).resolve(sanitize(targetReal));
 		Files.createDirectories(targetProjectsDir);
 		Path targetTranscript = targetProjectsDir.resolve(newId + ".jsonl");
-		Transcripts.rehomeTranscript(srcTranscript, targetTranscript, srcReal.toString(), targetReal.toString(), newId);
+		Transcripts.rehomeTranscript(srcTranscript, targetTranscript.toString(), srcReal, targetReal, newId);
 
 		// 3. Copy externalized tool-results (the <session-id>/ subdir next to the transcript), if any.
-		Path srcAux = srcTranscript.getParent().resolve(sessionId);
+		Path srcAux = Path.of(srcTranscript).getParent().resolve(sessionId);
 		if (Files.isDirectory(srcAux)) {
-			Transcripts.copyTree(srcAux, targetProjectsDir.resolve(newId));
+			Transcripts.copyTree(srcAux.toString(), targetProjectsDir.resolve(newId).toString());
 		}
 
 		// 4. Carry the SDK metadata sidecar across under the new id. The map is opaque (no paths
 		// to re-home), so it is copied verbatim.
-		Path srcMeta = SessionMetadata.fileFor(srcTranscript);
+		Path srcMeta = Path.of(SessionMetadata.fileFor(srcTranscript));
 		if (Files.isRegularFile(srcMeta)) {
 			Files.copy(srcMeta, targetProjectsDir.resolve(newId + SessionMetadata.EXTENSION),
 					StandardCopyOption.REPLACE_EXISTING);
 		}
 
-		return new Result(newId, targetDir, targetTranscript);
+		return new Result(newId, targetDir, targetTranscript.toString());
 	}
 
 	/** Claude names a working dir's transcript folder by replacing non-alphanumerics with '-'. */
-	static String sanitize(Path realPath) {
+	static String sanitize(String realPath) {
 		return TranscriptDirectory.sanitize(realPath);
 	}
 

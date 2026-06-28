@@ -44,12 +44,12 @@ class TranscriptDirectoryMappingTest {
 	void sanitizesEveryNonAlphanumericCharacter() {
 		// Observed CLI behavior: '/', '.', '_' and ' ' all become '-'; case is preserved.
 		Path workingDir = Path.of("/no-such-root-for-this-test/xprt test/under_score.d");
-		Path mapped = TranscriptDirectory.projectsDirFor(workingDir, Path.of("/projects"));
-		assertThat(mapped).isEqualTo(Path.of("/projects/-no-such-root-for-this-test-xprt-test-under-score-d"));
+		String mapped = TranscriptDirectory.projectsDirFor(workingDir.toString(), "/projects");
+		assertThat(mapped).isEqualTo("/projects/-no-such-root-for-this-test-xprt-test-under-score-d");
 
 		// The user's UTM example: spaces in a /Volumes path.
 		Path utm = Path.of("/Volumes/My Shared Files/shared/claude/test2");
-		assertThat(TranscriptDirectory.projectsDirFor(utm, Path.of("/p")).getFileName().toString())
+		assertThat(Path.of(TranscriptDirectory.projectsDirFor(utm.toString(), "/p")).getFileName().toString())
 				.isEqualTo("-Volumes-My-Shared-Files-shared-claude-test2");
 	}
 
@@ -59,19 +59,20 @@ class TranscriptDirectoryMappingTest {
 		Path target = Files.createDirectories(tmp.resolve("real target"));
 		Path link = Files.createSymbolicLink(tmp.resolve("link"), target);
 
-		Path viaLink = TranscriptDirectory.projectsDirFor(link, Path.of("/p"));
-		Path viaTarget = TranscriptDirectory.projectsDirFor(target, Path.of("/p"));
+		String viaLink = TranscriptDirectory.projectsDirFor(link.toString(), "/p");
+		String viaTarget = TranscriptDirectory.projectsDirFor(target.toString(), "/p");
 
 		// The CLI keys storage by the canonical path, so both must map to the same folder.
 		assertThat(viaLink).isEqualTo(viaTarget);
-		assertThat(viaLink.getFileName().toString())
-				.isEqualTo(TranscriptDirectory.sanitize(target.toRealPath()));
+		assertThat(Path.of(viaLink).getFileName().toString())
+				.isEqualTo(TranscriptDirectory.sanitize(target.toRealPath().toString()));
 	}
 
 	@Test
 	void missingTranscriptsYieldEmptyDirectory(@TempDir Path tmp) throws Exception {
 		Path workingDir = Files.createDirectories(tmp.resolve("fresh"));
-		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir, tmp.resolve("projects"));
+		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir.toString(),
+				tmp.resolve("projects").toString());
 
 		assertThat(d.sessions()).isEmpty();
 		assertThat(d.families()).isEmpty();
@@ -84,8 +85,8 @@ class TranscriptDirectoryMappingTest {
 		Path projectsRoot = tmp.resolve("projects");
 		Path transcripts = copyFixturesTo(projectsRoot, workingDir);
 
-		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir, projectsRoot);
-		assertThat(d.directory()).isEqualTo(transcripts);
+		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir.toString(), projectsRoot.toString());
+		assertThat(d.directory()).isEqualTo(transcripts.toString());
 		assertThat(d.sessions()).hasSize(3);
 		assertThat(d.byId(TranscriptDirectoryTest.C)).isPresent();
 	}
@@ -103,14 +104,15 @@ class TranscriptDirectoryMappingTest {
 		Files.setLastModifiedTime(transcripts.resolve(TranscriptDirectoryTest.B + ".jsonl"),
 				FileTime.from(base.plusSeconds(120)));
 
-		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir, projectsRoot);
+		TranscriptDirectory d = TranscriptDirectory.forWorkingDirectory(workingDir.toString(), projectsRoot.toString());
 		assertThat(d.mostRecentSession().sessionId()).isEqualTo(TranscriptDirectoryTest.B);
 	}
 
 	/** Copies the fork-lineage fixtures into the projects folder mapped to {@code workingDir}. */
 	static Path copyFixturesTo(Path projectsRoot, Path workingDir) throws Exception {
 		Path fixtures = Path.of(TranscriptDirectoryMappingTest.class.getResource("/transcripts/fork-lineage").toURI());
-		Path transcripts = Files.createDirectories(TranscriptDirectory.projectsDirFor(workingDir, projectsRoot));
+		Path transcripts = Files
+			.createDirectories(Path.of(TranscriptDirectory.projectsDirFor(workingDir.toString(), projectsRoot.toString())));
 		try (var files = Files.list(fixtures)) {
 			for (Path f : files.toList()) {
 				Files.copy(f, transcripts.resolve(f.getFileName().toString()));

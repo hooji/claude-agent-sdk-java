@@ -41,7 +41,7 @@ class TranscriptAwareIT extends ClaudeCliTestBase {
 	@DisplayName("Client exposes its session's on-disk history after a live conversation")
 	void clientExposesSessionHistory(@TempDir Path workingDir) throws Exception {
 		try (ClaudeSyncClient client = ClaudeClient.sync()
-			.workingDirectory(workingDir)
+			.workingDirectory(workingDir.toString())
 			.claudePath(getClaudeCliPath())
 			.model(CLIOptions.MODEL_HAIKU)
 			// No tools are used; DEFAULT also works in environments where the CLI rejects
@@ -50,7 +50,7 @@ class TranscriptAwareIT extends ClaudeCliTestBase {
 			.timeout(Duration.ofMinutes(2))
 			.build()) {
 
-			assertThat(client.getWorkingDirectory()).isEqualTo(workingDir);
+			assertThat(client.getWorkingDirectory()).isEqualTo(workingDir.toString());
 			assertThat(client.getCurrentSessionId()).isNull(); // nothing observed yet
 
 			String answer = client.connectText("Remember: the secret word is XYZZY. Reply with only: ok");
@@ -61,7 +61,7 @@ class TranscriptAwareIT extends ClaudeCliTestBase {
 			assertThat(sessionId).isNotNull().isNotEqualTo("default");
 
 			// The transcript was written to the mapped projects folder...
-			Path expectedDir = TranscriptDirectory.projectsDirFor(workingDir);
+			Path expectedDir = Path.of(TranscriptDirectory.projectsDirFor(workingDir.toString()));
 			assertThat(Files.isRegularFile(expectedDir.resolve(sessionId + ".jsonl")))
 				.as("transcript file for session %s under %s", sessionId, expectedDir)
 				.isTrue();

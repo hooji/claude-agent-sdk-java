@@ -21,7 +21,6 @@ import org.springaicommunity.claude.agent.sdk.hooks.HookRegistry;
 import org.springaicommunity.claude.agent.sdk.mcp.McpServerConfig;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,7 +42,7 @@ import java.util.Map;
  * </p>
  * <pre>{@code
  * try (ClaudeSyncClient client = ClaudeClient.sync()
- *         .workingDirectory(Path.of("."))
+ *         .workingDirectory(".")
  *         .model("claude-sonnet-4-20250514")
  *         .systemPrompt("Be concise")
  *         .timeout(Duration.ofMinutes(5))
@@ -67,7 +66,7 @@ import java.util.Map;
  *     .build();
  *
  * try (ClaudeSyncClient client = ClaudeClient.sync(options)
- *         .workingDirectory(Path.of("."))
+ *         .workingDirectory(".")
  *         .timeout(Duration.ofMinutes(5))
  *         .build()) {
  *     // Only session-level config available, CLI options already set
@@ -85,7 +84,7 @@ import java.util.Map;
  * });
  *
  * try (ClaudeSyncClient client = ClaudeClient.sync()
- *         .workingDirectory(Path.of("."))
+ *         .workingDirectory(".")
  *         .hookRegistry(hooks)
  *         .build()) {
  *     // Hooks intercept tool usage
@@ -141,7 +140,7 @@ public interface ClaudeClient {
 	 *
 	 * <h3>Session Configuration</h3>
 	 * <ul>
-	 * <li>{@link #workingDirectory(Path)} - Directory where Claude CLI operates
+	 * <li>{@link #workingDirectory(String)} - Directory where Claude CLI operates
 	 * (required)</li>
 	 * <li>{@link #timeout(Duration)} - Operation timeout (default: 10 minutes)</li>
 	 * <li>{@link #claudePath(String)} - Custom path to Claude CLI executable</li>
@@ -184,7 +183,7 @@ public interface ClaudeClient {
 	 *
 	 * <h2>Example</h2> <pre>{@code
 	 * ClaudeSyncClient client = ClaudeClient.sync()
-	 *     .workingDirectory(Path.of("."))
+	 *     .workingDirectory(".")
 	 *     .model("claude-sonnet-4-20250514")
 	 *     .systemPrompt("You are a helpful assistant")
 	 *     .maxTokens(4096)
@@ -197,7 +196,7 @@ public interface ClaudeClient {
 	 */
 	class SyncSpec {
 
-		private Path workingDirectory;
+		private String workingDirectory;
 
 		private Duration timeout = Duration.ofMinutes(10);
 
@@ -239,7 +238,7 @@ public interface ClaudeClient {
 		 * @param workingDirectory the working directory path (required)
 		 * @return this builder instance for method chaining
 		 */
-		public SyncSpec workingDirectory(Path workingDirectory) {
+		public SyncSpec workingDirectory(String workingDirectory) {
 			this.workingDirectory = workingDirectory;
 			return this;
 		}
@@ -455,7 +454,7 @@ public interface ClaudeClient {
 	 * Only session-level configuration is exposed (CLI options are already set):
 	 * </p>
 	 * <ul>
-	 * <li>{@link #workingDirectory(Path)} - Directory where Claude CLI operates
+	 * <li>{@link #workingDirectory(String)} - Directory where Claude CLI operates
 	 * (required)</li>
 	 * <li>{@link #timeout(Duration)} - Operation timeout (default: 10 minutes)</li>
 	 * <li>{@link #claudePath(String)} - Custom path to Claude CLI executable</li>
@@ -479,7 +478,7 @@ public interface ClaudeClient {
 	 *
 	 * // Build client with pre-configured options
 	 * ClaudeSyncClient client = ClaudeClient.sync(options)
-	 *     .workingDirectory(Path.of("."))
+	 *     .workingDirectory(".")
 	 *     .timeout(Duration.ofMinutes(5))
 	 *     .build();
 	 * }</pre>
@@ -492,7 +491,7 @@ public interface ClaudeClient {
 
 		private final CLIOptions options;
 
-		private Path workingDirectory;
+		private String workingDirectory;
 
 		private Duration timeout = Duration.ofMinutes(10);
 
@@ -509,7 +508,7 @@ public interface ClaudeClient {
 		 * @param workingDirectory the working directory path (required)
 		 * @return this builder instance for method chaining
 		 */
-		public SyncSpecWithOptions workingDirectory(Path workingDirectory) {
+		public SyncSpecWithOptions workingDirectory(String workingDirectory) {
 			this.workingDirectory = workingDirectory;
 			return this;
 		}
@@ -616,7 +615,7 @@ public interface ClaudeClient {
 	 *
 	 * <h2>Example</h2> <pre>{@code
 	 * ClaudeAsyncClient client = ClaudeClient.async()
-	 *     .workingDirectory(Path.of("."))
+	 *     .workingDirectory(".")
 	 *     .model("claude-sonnet-4-20250514")
 	 *     .systemPrompt("You are a helpful assistant")
 	 *     .timeout(Duration.ofMinutes(5))
@@ -633,7 +632,7 @@ public interface ClaudeClient {
 	 */
 	class AsyncSpec {
 
-		private Path workingDirectory;
+		private String workingDirectory;
 
 		private Duration timeout = Duration.ofMinutes(10);
 
@@ -671,7 +670,7 @@ public interface ClaudeClient {
 		AsyncSpec() {
 		}
 
-		public AsyncSpec workingDirectory(Path workingDirectory) {
+		public AsyncSpec workingDirectory(String workingDirectory) {
 			this.workingDirectory = workingDirectory;
 			return this;
 		}
@@ -814,7 +813,7 @@ public interface ClaudeClient {
 	 *     .build();
 	 *
 	 * ClaudeAsyncClient client = ClaudeClient.async(options)
-	 *     .workingDirectory(Path.of("."))
+	 *     .workingDirectory(".")
 	 *     .timeout(Duration.ofMinutes(5))
 	 *     .build();
 	 * }</pre>
@@ -827,7 +826,7 @@ public interface ClaudeClient {
 
 		private final CLIOptions options;
 
-		private Path workingDirectory;
+		private String workingDirectory;
 
 		private Duration timeout = Duration.ofMinutes(10);
 
@@ -839,7 +838,7 @@ public interface ClaudeClient {
 			this.options = options;
 		}
 
-		public AsyncSpecWithOptions workingDirectory(Path workingDirectory) {
+		public AsyncSpecWithOptions workingDirectory(String workingDirectory) {
 			this.workingDirectory = workingDirectory;
 			return this;
 		}

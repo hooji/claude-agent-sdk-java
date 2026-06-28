@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.springaicommunity.claude.agent.sdk.types.Message;
 import reactor.core.publisher.Flux;
@@ -45,8 +44,8 @@ import reactor.core.publisher.Flux;
  * @param workingDirectory the directory this session ran in, recovered from the {@code cwd}
  * stamped on the transcript ({@code null} if none was recorded). Unlike the sanitized storage
  * folder name, this is the real path the user ran Claude in. It is populated even by a
- * {@linkplain TranscriptDirectory#load(Path, boolean) lightweight} load (which reads only as far
- * as the first {@code cwd}). See {@link #workingDirectoryPath()} for the {@link Path} form.
+ * {@linkplain TranscriptDirectory#load(String, boolean) lightweight} load (which reads only as far
+ * as the first {@code cwd}).
  * @param entries every line of the file, in order, retained losslessly
  * @param messages the uuid-bearing subset of {@code entries} (the lineage carrier the fork
  * partition indexes into)
@@ -60,7 +59,7 @@ import reactor.core.publisher.Flux;
  * not by mutating the returned map directly. Because it is mutable, a {@code Session} must not be
  * used as a hash-map key or set element.
  */
-public record Session(String sessionId, Path file, boolean agentSession, String agentId, String workingDirectory,
+public record Session(String sessionId, String file, boolean agentSession, String agentId, String workingDirectory,
 		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments,
 		List<ForkMarker> forkMarkers, Map<String, Serializable> metaData) {
 
@@ -104,19 +103,11 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	}
 
 	/**
-	 * The {@link #workingDirectory()} as a {@link Path}.
-	 * @return the working directory path, or empty if no {@code cwd} was recorded
-	 */
-	public Optional<Path> workingDirectoryPath() {
-		return workingDirectory == null ? Optional.empty() : Optional.of(Path.of(workingDirectory));
-	}
-
-	/**
 	 * The path to this session's {@code <id>.meta} metadata sidecar (next to the transcript). The
 	 * file may not exist — it is written lazily, the first time metadata is persisted.
 	 * @return the {@code .meta} sidecar path
 	 */
-	public Path metaFilePath() {
+	public String metaFilePath() {
 		return SessionMetadata.fileFor(file);
 	}
 
@@ -157,9 +148,9 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	}
 
 	/** Last-modified instant of {@code path}, or {@code null} if it does not exist. */
-	private static Instant lastModified(Path path) {
+	private static Instant lastModified(String path) {
 		try {
-			return Files.getLastModifiedTime(path).toInstant();
+			return Files.getLastModifiedTime(Path.of(path)).toInstant();
 		}
 		catch (NoSuchFileException e) {
 			return null;
@@ -221,12 +212,13 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 	 * @throws IllegalStateException if the working directory can't be inferred (no {@code cwd} in
 	 * the transcript), or the in-memory metadata differs from the on-disk {@code .meta}
 	 */
-	public Path archiveTo(Path targetArchive) throws IOException {
-		Path workingDir = workingDirectoryPath().orElseThrow(() -> new IllegalStateException(
-				"Cannot infer the working directory for session " + sessionId
-						+ " (no cwd recorded in its transcript); use SessionArchive.create(sessionId, "
-						+ "workingDir, ...) with an explicit directory"));
-		Path folder = file.getParent();
+	public String archiveTo(String targetArchive) throws IOException {
+		if (workingDirectory == null) {
+			throw new IllegalStateException("Cannot infer the working directory for session " + sessionId
+					+ " (no cwd recorded in its transcript); use SessionArchive.create(sessionId, "
+					+ "workingDir, ...) with an explicit directory");
+		}
+		Path folder = Path.of(file).getParent();
 		Path projectsRoot = folder == null ? null : folder.getParent();
 		if (projectsRoot == null) {
 			throw new IllegalStateException("Cannot derive the projects root from transcript path " + file);
@@ -237,7 +229,7 @@ public record Session(String sessionId, Path file, boolean agentSession, String 
 					+ " differs from its on-disk .meta file; mutate via putMetaData/removeMetaData, or call "
 					+ "writeMetaData() before archiving");
 		}
-		return SessionArchive.create(sessionId, workingDir, targetArchive, projectsRoot);
+		return SessionArchive.create(sessionId, workingDirectory, targetArchive, projectsRoot.toString());
 	}
 
 	/**

@@ -82,7 +82,7 @@ currentStream = claudeService.streamText(prompt)
 // Stream text responses
 public Flux<String> streamText(String prompt) {
     ClaudeAsyncClient client = ClaudeClient.async()
-        .workingDirectory(Path.of("."))
+        .workingDirectory(".")
         .systemPrompt(SYSTEM_PROMPT)
         .permissionMode(PermissionMode.BYPASS_PERMISSIONS)
         .build();

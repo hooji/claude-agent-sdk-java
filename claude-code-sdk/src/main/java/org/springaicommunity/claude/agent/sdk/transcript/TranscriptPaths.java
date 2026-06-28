@@ -16,7 +16,6 @@
 
 package org.springaicommunity.claude.agent.sdk.transcript;
 
-import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,13 +36,13 @@ final class TranscriptPaths {
 	private TranscriptPaths() {
 	}
 
-	static List<Path> referencedFiles(JsonNode raw) {
-		LinkedHashSet<Path> out = new LinkedHashSet<>();
+	static List<String> referencedFiles(JsonNode raw) {
+		LinkedHashSet<String> out = new LinkedHashSet<>();
 		collect(raw, out);
 		return List.copyOf(out);
 	}
 
-	private static void collect(JsonNode node, LinkedHashSet<Path> out) {
+	private static void collect(JsonNode node, LinkedHashSet<String> out) {
 		if (node == null) {
 			return;
 		}
@@ -53,7 +52,7 @@ final class TranscriptPaths {
 				var entry = fields.next();
 				JsonNode value = entry.getValue();
 				if (value.isTextual() && PATH_FIELDS.contains(entry.getKey()) && looksLikePath(value.asText())) {
-					out.add(Path.of(value.asText()));
+					out.add(value.asText());
 				}
 				else {
 					collect(value, out);

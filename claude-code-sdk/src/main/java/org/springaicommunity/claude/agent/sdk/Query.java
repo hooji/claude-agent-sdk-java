@@ -23,8 +23,6 @@ import org.springaicommunity.claude.agent.sdk.types.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -212,7 +210,7 @@ public class Query {
 	 */
 	@Deprecated
 	public static QueryResult execute(String prompt, CLIOptions options) throws ClaudeSDKException {
-		return execute(prompt, options, Paths.get(System.getProperty("user.dir")));
+		return execute(prompt, options, System.getProperty("user.dir"));
 	}
 
 	/**
@@ -223,7 +221,7 @@ public class Query {
 	 * layer handling across all SDK APIs.
 	 * </p>
 	 */
-	public static QueryResult execute(String prompt, CLIOptions options, Path workingDirectory)
+	public static QueryResult execute(String prompt, CLIOptions options, String workingDirectory)
 			throws ClaudeSDKException {
 
 		logger.info("Executing query with prompt length: {}", prompt.length());

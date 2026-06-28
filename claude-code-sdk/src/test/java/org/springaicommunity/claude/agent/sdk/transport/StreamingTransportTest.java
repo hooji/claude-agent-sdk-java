@@ -54,7 +54,7 @@ class StreamingTransportTest {
 		@DisplayName("Should build command with required bidirectional flags")
 		void buildCommandWithBidirectionalFlags() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
 				.model("claude-sonnet-4-20250514")
 				.permissionMode(PermissionMode.BYPASS_PERMISSIONS)
@@ -76,7 +76,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include model when specified")
 		void buildCommandWithModel() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().model("claude-3-opus-20240229").build();
 
 			// When
@@ -92,7 +92,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include system prompt when specified")
 		void buildCommandWithSystemPrompt() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().systemPrompt("You are a helpful assistant").build();
 
 			// When
@@ -108,7 +108,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include allowed tools when specified")
 		void buildCommandWithAllowedTools() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().allowedTools(List.of("Bash", "Read", "Write")).build();
 
 			// When
@@ -124,7 +124,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include disallowed tools when specified")
 		void buildCommandWithDisallowedTools() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().disallowedTools(List.of("WebFetch")).build();
 
 			// When
@@ -140,7 +140,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include permission mode")
 		void buildCommandWithPermissionMode() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().permissionMode(PermissionMode.BYPASS_PERMISSIONS).build();
 
 			// When
@@ -156,7 +156,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include prompt as command-line argument in bidirectional mode")
 		void shouldNotIncludePromptAsArgument() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().build();
 
 			// When
@@ -174,7 +174,7 @@ class StreamingTransportTest {
 		@DisplayName("Should handle empty options gracefully")
 		void buildCommandWithEmptyOptions() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().build();
 
 			// When
@@ -192,7 +192,7 @@ class StreamingTransportTest {
 		@DisplayName("Should build complete command with all options")
 		void buildCompleteCommand() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
 				.model("claude-sonnet-4-20250514")
 				.systemPrompt("Be helpful")
@@ -226,7 +226,7 @@ class StreamingTransportTest {
 		@Test
 		@DisplayName("Should report not running initially")
 		void notRunningInitially() {
-			StreamingTransport transport = new StreamingTransport(tempDir);
+			StreamingTransport transport = new StreamingTransport(tempDir.toString());
 
 			assertThat(transport.isRunning()).isFalse();
 
@@ -236,7 +236,7 @@ class StreamingTransportTest {
 		@Test
 		@DisplayName("Should close cleanly when not started")
 		void closeWhenNotStarted() {
-			StreamingTransport transport = new StreamingTransport(tempDir);
+			StreamingTransport transport = new StreamingTransport(tempDir.toString());
 
 			// Should not throw
 			transport.close();
@@ -248,7 +248,7 @@ class StreamingTransportTest {
 		@DisplayName("Should support custom timeout")
 		void customTimeout() {
 			Duration customTimeout = Duration.ofMinutes(30);
-			StreamingTransport transport = new StreamingTransport(tempDir, customTimeout);
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), customTimeout);
 
 			// Just verify construction succeeded
 			assertThat(transport).isNotNull();
@@ -259,7 +259,7 @@ class StreamingTransportTest {
 		@Test
 		@DisplayName("Should support custom claude path")
 		void customClaudePath() {
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5),
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5),
 					"/custom/path/claude");
 
 			List<String> command = transport.buildStreamingCommand(CLIOptions.builder().build());
@@ -279,7 +279,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include max-turns when specified")
 		void buildCommandWithMaxTurns() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().maxTurns(10).build();
 
 			// When
@@ -295,7 +295,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include max-budget-usd when specified")
 		void buildCommandWithMaxBudgetUsd() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().maxBudgetUsd(0.50).build();
 
 			// When
@@ -311,7 +311,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include fallback-model when specified")
 		void buildCommandWithFallbackModel() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().fallbackModel("claude-haiku-3-5-20241022").build();
 
 			// When
@@ -327,7 +327,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include append-system-prompt when specified via builder")
 		void buildCommandWithAppendSystemPrompt() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().appendSystemPrompt("Be concise and focused.").build();
 
 			// When
@@ -343,7 +343,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include all budget control options together")
 		void buildCommandWithAllBudgetOptions() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
 				.model("claude-sonnet-4-5")
 				.maxTurns(5)
@@ -372,7 +372,7 @@ class StreamingTransportTest {
 		@DisplayName("Command should enable full bidirectional communication")
 		void commandEnablesBidirectionalMode() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.defaultOptions();
 
 			// When
@@ -395,7 +395,7 @@ class StreamingTransportTest {
 			// In bidirectional mode (--input-format stream-json), the CLI waits for
 			// input via stdin. Using --print with a command-line prompt would conflict
 			// with this mode. Instead, the prompt is sent as a JSON user message.
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 
 			List<String> command = transport.buildStreamingCommand(CLIOptions.builder().build());
 
@@ -408,7 +408,7 @@ class StreamingTransportTest {
 		@Test
 		@DisplayName("Should always include --verbose for control protocol")
 		void alwaysIncludesVerbose() {
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 
 			List<String> command = transport.buildStreamingCommand(CLIOptions.builder().build());
 
@@ -428,7 +428,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include --continue flag when continueConversation is true")
 		void buildCommandWithContinueConversation() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().continueConversation(true).build();
 
 			// When
@@ -444,7 +444,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include --continue flag when continueConversation is false")
 		void buildCommandWithoutContinueWhenFalse() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().continueConversation(false).build();
 
 			// When
@@ -460,7 +460,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include --resume flag with session ID")
 		void buildCommandWithResume() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().resume("session-abc123").build();
 
 			// When
@@ -478,7 +478,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include --resume flag when resume is null")
 		void buildCommandWithoutResumeWhenNull() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().resume(null).build();
 
 			// When
@@ -494,7 +494,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include --resume flag when resume is empty string")
 		void buildCommandWithoutResumeWhenEmpty() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().resume("").build();
 
 			// When
@@ -510,7 +510,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include --resume flag when resume is blank")
 		void buildCommandWithoutResumeWhenBlank() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().resume("   ").build();
 
 			// When
@@ -543,7 +543,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include agents JSON for multi-agent coordination")
 		void buildCommandWithAgents() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			String agentsJson = "{\"researcher\":{\"description\":\"Research agent\",\"tools\":[\"WebSearch\"],\"prompt\":\"You are a researcher\",\"model\":\"haiku\"}}";
 			CLIOptions options = CLIOptions.builder().agents(agentsJson).build();
 
@@ -562,7 +562,7 @@ class StreamingTransportTest {
 		@DisplayName("Should NOT include agents flag when agents is null or empty")
 		void buildCommandWithoutAgentsWhenEmpty() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().agents("").build();
 
 			// When
@@ -578,9 +578,9 @@ class StreamingTransportTest {
 		@DisplayName("Should include add-dir flags for each directory")
 		void buildCommandWithAddDirs() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
-				.addDirs(List.of(Path.of("/workspace/libs"), Path.of("/workspace/docs")))
+				.addDirs(List.of("/workspace/libs", "/workspace/docs"))
 				.build();
 
 			// When
@@ -604,7 +604,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include settings flag when specified")
 		void buildCommandWithSettings() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().settings("/etc/claude/settings.json").build();
 
 			// When
@@ -622,7 +622,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include permission-prompt-tool-name when specified")
 		void buildCommandWithPermissionPromptToolName() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().permissionPromptToolName("custom-tool").build();
 
 			// When
@@ -640,7 +640,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include plugin-dir flags for each plugin")
 		void buildCommandWithPlugins() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
 				.plugins(List.of(PluginConfig.local("/opt/plugins/custom"), PluginConfig.local("/home/user/plugins")))
 				.build();
@@ -660,7 +660,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include extra args with values")
 		void buildCommandWithExtraArgsWithValue() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder().extraArgs(Map.of("custom-flag", "custom-value")).build();
 
 			// When
@@ -678,7 +678,7 @@ class StreamingTransportTest {
 		@DisplayName("Should include extra args as boolean flags when value is null")
 		void buildCommandWithExtraArgsBooleanFlag() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			// Use HashMap to allow null values
 			Map<String, String> extraArgs = new java.util.HashMap<>();
 			extraArgs.put("debug-to-stderr", null);
@@ -718,10 +718,10 @@ class StreamingTransportTest {
 		@DisplayName("Should include all advanced options together")
 		void buildCommandWithAllAdvancedOptions() {
 			// Given
-			StreamingTransport transport = new StreamingTransport(tempDir, Duration.ofMinutes(5), "/usr/bin/claude");
+			StreamingTransport transport = new StreamingTransport(tempDir.toString(), Duration.ofMinutes(5), "/usr/bin/claude");
 			CLIOptions options = CLIOptions.builder()
 				.model("claude-sonnet-4-5")
-				.addDirs(List.of(Path.of("/workspace")))
+				.addDirs(List.of("/workspace"))
 				.settings("/etc/claude/settings.json")
 				.plugins(List.of(PluginConfig.local("/opt/plugins/custom")))
 				.extraArgs(Map.of("custom-flag", "value"))
