@@ -60,11 +60,10 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 
 		// When & Then - using TurnSpec pattern
 		StepVerifier
-			.create(client.connect("What is 2+2? Reply with just the number.")
-				.messages()
-				.doOnNext(messages::add)
-				.then(client.close()))
+			.create(client.connect("What is 2+2? Reply with just the number.").messages().doOnNext(messages::add))
 			.verifyComplete();
+
+		client.close();
 
 		// Verify we got messages including a result
 		assertThat(messages).isNotEmpty();
@@ -102,9 +101,10 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 						if (msg instanceof AssistantMessage assistant) {
 							assistant.getTextContent().ifPresent(responseText::append);
 						}
-					})
-					.then(client.close()))
+					}))
 			.verifyComplete();
+
+		client.close();
 
 		// The response should mention blue
 		assertThat(responseText.toString().toLowerCase()).contains("blue");
@@ -128,11 +128,11 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 		// Connect and verify status using TurnSpec
 		StepVerifier.create(client.connect("Hello").messages().doOnSubscribe(s -> {
 			// Connection happens on subscribe
-		})
-			.doOnNext(msg -> assertThat(client.isConnected()).isTrue())
-			.then()
-			.doOnSuccess(v -> assertThat(client.isConnected()).isTrue())
-			.then(client.close())).verifyComplete();
+		}).doOnNext(msg -> assertThat(client.isConnected()).isTrue()).then().doOnSuccess(v -> {
+			assertThat(client.isConnected()).isTrue();
+		})).verifyComplete();
+
+		client.close();
 	}
 
 	@Test
@@ -155,7 +155,9 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 			if (msg instanceof AssistantMessage assistant) {
 				assistant.getTextContent().ifPresent(responseText::append);
 			}
-		}).then(client.close())).verifyComplete();
+		})).verifyComplete();
+
+		client.close();
 
 		// Response should have pirate-like language
 		String text = responseText.toString().toLowerCase();
@@ -176,16 +178,14 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 			.build();
 
 		// When & Then - using TurnSpec pattern
-		StepVerifier
-			.create(client.connect("Say hello")
-				.messages()
-				.then(client.close())
-				.doOnSuccess(v -> assertThat(client.isConnected()).isFalse()))
-			.verifyComplete();
+		StepVerifier.create(client.connect("Say hello").messages()).verifyComplete();
+
+		client.close();
+		assertThat(client.isConnected()).isFalse();
 
 		// Multiple closes should be safe
-		StepVerifier.create(client.close()).verifyComplete();
-		StepVerifier.create(client.close()).verifyComplete();
+		client.close();
+		client.close();
 	}
 
 	@Test
@@ -207,9 +207,10 @@ class ClaudeAsyncClientIT extends ClaudeCliTestBase {
 				.filter(msg -> msg instanceof AssistantMessage)
 				.map(msg -> ((AssistantMessage) msg).getTextContent().orElse(""))
 				.filter(text -> !text.isEmpty())
-				.take(1)
-				.then(client.close()))
+				.take(1))
 			.verifyComplete();
+
+		client.close();
 	}
 
 }

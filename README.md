@@ -45,6 +45,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Background agents** (`BackgroundAgents`) | Dispatch a detached `claude --bg` agent and manage it (dispatch → poll → retrieve): `dispatch(...)` returns a handle, `awaitTerminal()` polls to completion, then `result()` / `transcript()` / `archiveTo()` retrieve the outcome via the transcript toolkit. | [docs/background-agents.md](docs/background-agents.md) |
 | **Token-level streaming** (`StreamEvent`) | `partialTextStream()` / `partialEvents()` on the async client surface the CLI's `--include-partial-messages` deltas as they are generated. | [docs/partial-streaming.md](docs/partial-streaming.md) |
 | **Fat-jar releases** | A `claude-code-sdk-all` uber jar (SDK + all runtime dependencies) published as a GitHub Release on every `v*` tag. | [docs/releasing.md](docs/releasing.md) |
+| **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
 
 ## Requirements
 

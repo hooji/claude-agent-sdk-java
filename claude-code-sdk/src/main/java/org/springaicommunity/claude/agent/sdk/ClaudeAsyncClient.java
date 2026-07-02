@@ -453,17 +453,23 @@ public interface ClaudeAsyncClient extends TranscriptAware {
 	// ========================================================================
 
 	/**
-	 * Closes the client and releases all resources.
-	 * @return Mono that completes when the client is closed
+	 * Closes the client and releases all resources, blocking until the underlying Claude
+	 * CLI process has terminated.
+	 *
+	 * <p>
+	 * This is a blocking call by design: releasing the process is not optional cleanup,
+	 * and a fire-and-forget {@code Mono} is easy to construct and never subscribe to,
+	 * silently leaving the CLI subprocess running. Call this from a non-reactive context
+	 * (e.g. a {@code finally} block) rather than from within a reactive chain.
+	 * </p>
 	 */
-	Mono<Void> close();
+	void close();
 
 	/**
 	 * Alias for {@link #close()} for semantic clarity.
-	 * @return Mono that completes when disconnected
 	 */
-	default Mono<Void> disconnect() {
-		return close();
+	default void disconnect() {
+		close();
 	}
 
 }
