@@ -14,9 +14,16 @@
 
     <properties>
         <!-- CI-friendly version: overridden by -Drevision=<version> at release
-             time (see .github/workflows/release.yml); this default only labels
-             local dev builds. -->
-        <revision>1.1.2</revision>
+             time (see .github/workflows/release.yml); this default is an
+             intentionally-fake placeholder for unreleased/local builds only -
+             it is never a real shipped version and should never be
+             hand-bumped. Must match the root pom.xml's `revision` default:
+             this module isn't a reactor child of the root pom (it's built as
+             a separate `cd fatjar && mvn package` step), so a local build
+             here resolves its claude-code-sdk dependency by this literal
+             version string against whatever was `install`ed from the root
+             pom. -->
+        <revision>0.0.0-DEV</revision>
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>

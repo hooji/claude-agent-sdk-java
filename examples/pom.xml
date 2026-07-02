@@ -7,7 +7,12 @@
     <parent>
         <groupId>org.springaicommunity</groupId>
         <artifactId>claude-agent-sdk-parent</artifactId>
-        <version>1.0.0</version>
+        <!-- Must match the root pom.xml's `revision` placeholder default exactly:
+             this module is built standalone (not a reactor child of the root
+             pom), so Maven resolves this parent via relativePath and requires
+             the declared version here to equal the parent's own (interpolated)
+             version. -->
+        <version>0.0.0-DEV</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
