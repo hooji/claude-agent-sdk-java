@@ -48,12 +48,17 @@
     </ciManagement>
 
     <properties>
-        <!-- CI-friendly version. The real value comes from the release tag via
-             -Drevision=<version> (see .github/workflows/release.yml); this
-             default only labels local dev builds. flatten-maven-plugin resolves
-             ${revision} in the installed POMs so consumers never see the
-             placeholder. -->
-        <revision>1.1.2</revision>
+        <!-- CI-friendly version. The real value always comes from the release tag
+             via -Drevision=<version> (see .github/workflows/release.yml); this
+             default is an intentionally-fake placeholder used only to make
+             ${revision} resolvable for unreleased builds (plain `mvn verify` in
+             CI, local `./mvnw install`, etc.) - it is never a real shipped
+             version and should never be hand-bumped. flatten-maven-plugin
+             resolves ${revision} in the installed POMs so consumers never see
+             the placeholder. Keep this in sync with fatjar/pom.xml's own
+             `revision` default and examples/pom.xml's parent version, which
+             must match for local (non-release) builds to resolve. -->
+        <revision>0.0.0-DEV</revision>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
