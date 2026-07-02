@@ -83,7 +83,7 @@ asyncClient.queryAndReceive("Explain recursion.")
     .flatMap(msg -> ((AssistantMessage) msg).getTextContent()
         .map(Mono::just).orElse(Mono.empty()))
     .doOnNext(System.out::print)
-    .doFinally(s -> asyncClient.close().subscribe())
+    .doFinally(s -> asyncClient.close())
     .subscribe();
 ```
 

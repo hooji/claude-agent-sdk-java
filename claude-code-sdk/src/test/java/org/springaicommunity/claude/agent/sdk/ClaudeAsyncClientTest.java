@@ -63,7 +63,7 @@ class ClaudeAsyncClientTest {
 			assertThat(client).isNotNull();
 			assertThat(client.isConnected()).isFalse();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -90,7 +90,7 @@ class ClaudeAsyncClientTest {
 			assertThat(client).isNotNull();
 			assertThat(client.getServerInfo()).isEmpty();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -128,7 +128,7 @@ class ClaudeAsyncClientTest {
 			assertThat(client).isNotNull();
 			assertThat(client.isConnected()).isFalse();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -150,7 +150,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(client).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -195,7 +195,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(client.isConnected()).isFalse();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -208,7 +208,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -220,7 +220,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -232,7 +232,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -244,7 +244,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}
@@ -263,7 +263,7 @@ class ClaudeAsyncClientTest {
 			client.registerHook(HookEvent.PRE_TOOL_USE, "Bash", input -> HookOutput.allow());
 
 			// No exception thrown = success
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -279,7 +279,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(result).isSameAs(client);
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}
@@ -294,9 +294,9 @@ class ClaudeAsyncClientTest {
 			ClaudeAsyncClient client = ClaudeClient.async().workingDirectory(workingDirectory).build();
 
 			// Multiple closes should not error
-			StepVerifier.create(client.close()).verifyComplete();
-			StepVerifier.create(client.close()).verifyComplete();
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
+			client.close();
+			client.close();
 		}
 
 		@Test
@@ -304,7 +304,7 @@ class ClaudeAsyncClientTest {
 		void disconnectShouldAliasClose() {
 			ClaudeAsyncClient client = ClaudeClient.async().workingDirectory(workingDirectory).build();
 
-			StepVerifier.create(client.disconnect()).verifyComplete();
+			client.disconnect();
 			assertThat(client.isConnected()).isFalse();
 		}
 
@@ -341,7 +341,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -359,7 +359,7 @@ class ClaudeAsyncClientTest {
 				.expectErrorMatches(e -> e instanceof IllegalStateException && e.getMessage().contains("not connected"))
 				.verify();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}
@@ -375,7 +375,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(client.getServerInfo()).isEmpty();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}
@@ -393,7 +393,7 @@ class ClaudeAsyncClientTest {
 			var flux = client.connectAndReceive("test");
 			assertThat(flux).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -404,7 +404,7 @@ class ClaudeAsyncClientTest {
 			var flux = client.queryAndReceive("test");
 			assertThat(flux).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -415,7 +415,7 @@ class ClaudeAsyncClientTest {
 			var flux = client.connectText("test");
 			assertThat(flux).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -426,7 +426,7 @@ class ClaudeAsyncClientTest {
 			var flux = client.queryText("test");
 			assertThat(flux).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}
@@ -442,7 +442,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(client.getToolPermissionCallback()).isNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 		@Test
@@ -456,7 +456,7 @@ class ClaudeAsyncClientTest {
 
 			assertThat(client.getToolPermissionCallback()).isNotNull();
 
-			StepVerifier.create(client.close()).verifyComplete();
+			client.close();
 		}
 
 	}

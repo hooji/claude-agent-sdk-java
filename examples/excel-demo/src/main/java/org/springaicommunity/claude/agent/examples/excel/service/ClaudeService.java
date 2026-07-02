@@ -101,7 +101,7 @@ public class ClaudeService {
 			.doOnError(error -> log.error("[STREAM] Query ERROR: {}", error.getMessage(), error))
 			.doFinally(signal -> {
 				log.info("[STREAM] Final signal: {}", signal);
-				client.close().subscribe();
+				client.close();
 			});
 	}
 
@@ -131,7 +131,7 @@ public class ClaudeService {
 			.permissionMode(PermissionMode.BYPASS_PERMISSIONS)
 			.build();
 
-		return client.queryAndReceive(prompt).doFinally(signal -> client.close().subscribe());
+		return client.queryAndReceive(prompt).doFinally(signal -> client.close());
 	}
 
 	/**

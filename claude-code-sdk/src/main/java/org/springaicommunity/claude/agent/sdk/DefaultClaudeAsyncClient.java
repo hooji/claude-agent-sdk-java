@@ -120,6 +120,10 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	// Transport (set once during connect, read afterward)
 	private final AtomicReference<StreamingTransport> transportRef = new AtomicReference<>();
 
+	// JVM shutdown hook that force-closes this client if the process exits without an
+	// explicit close() call, so the Claude CLI subprocess is never orphaned.
+	private final Thread shutdownHook;
+
 	/**
 	 * Per-turn unicast sink for streaming messages to the current receiveResponse()
 	 * subscriber.
@@ -195,6 +199,10 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 
 		// Register SDK MCP servers for mcp_message handling
 		registerMcpServers();
+
+		// Ensure the CLI subprocess is terminated even if the caller never calls close()
+		this.shutdownHook = new Thread(this::close, "claude-async-client-shutdown-" + sessionPrefix);
+		Runtime.getRuntime().addShutdownHook(this.shutdownHook);
 	}
 
 	private void registerMcpServers() {
@@ -490,14 +498,37 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	}
 
 	@Override
-	public Mono<Void> close() {
+	public void close() {
+		closeMono().block();
+	}
+
+	/**
+	 * Reactive close logic, blocked on synchronously by {@link #close()}.
+	 * <p>
+	 * Kept as a {@code Mono} internally (rather than inlined) so cleanup still runs on
+	 * {@link Schedulers#boundedElastic()} like the rest of this client's blocking I/O,
+	 * instead of on whatever thread happens to call {@link #close()} (e.g. the JVM
+	 * shutdown-hook thread).
+	 */
+	private Mono<Void> closeMono() {
 		return Mono.<Void>fromRunnable(() -> {
 			if (closed.compareAndSet(false, true)) {
 				connected.set(false);
 				cleanup();
+				removeShutdownHook();
 				logger.info("Client closed");
 			}
 		}).subscribeOn(Schedulers.boundedElastic());
+	}
+
+	private void removeShutdownHook() {
+		try {
+			Runtime.getRuntime().removeShutdownHook(shutdownHook);
+		}
+		catch (IllegalStateException e) {
+			// JVM is already shutting down (we're likely running from the hook itself) -
+			// hooks can't be removed at this point, and don't need to be.
+		}
 	}
 
 	@Override

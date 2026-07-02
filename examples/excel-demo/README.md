@@ -91,7 +91,7 @@ public Flux<String> streamText(String prompt) {
         .filter(msg -> msg instanceof AssistantMessage)
         .flatMap(msg -> ((AssistantMessage) msg).getTextContent()
             .map(Mono::just).orElse(Mono.empty()))
-        .doFinally(s -> client.close().subscribe());
+        .doFinally(s -> client.close());
 }
 ```
 

@@ -129,7 +129,7 @@ public class HelloWorld {
 					System.err.println("Stream error: " + e.getMessage());
 					streamLatch.countDown();
 				})
-				.doFinally(s -> asyncClient.close().subscribe())
+				.doFinally(s -> asyncClient.close())
 				.subscribe();
 
 			// Wait for streaming to complete

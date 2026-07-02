@@ -67,7 +67,7 @@ public class ClaudeService {
 			})
 			.doOnComplete(() -> log.info("[STREAM] Query COMPLETED"))
 			.doOnError(error -> log.error("[STREAM] Query ERROR: {}", error.getMessage(), error))
-			.doFinally(signal -> client.close().subscribe());
+			.doFinally(signal -> client.close());
 	}
 
 	/**
