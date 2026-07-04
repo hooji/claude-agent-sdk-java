@@ -197,7 +197,7 @@ public record Session(String sessionId, String file, boolean agentSession, Strin
 
 	/**
 	 * Archives this session — its transcript, its {@code <id>.meta} metadata, the working
-	 * directory's AI-memory folder, and its entire working directory tree — to
+	 * directory's AI-memory folder, its task list, and its entire working directory tree — to
 	 * {@code targetArchive} as a single portable file (see {@link SessionArchive}). The working directory comes from {@link #workingDirectory()} and the
 	 * projects root from this session's {@link #file()}; the metadata is taken from the
 	 * {@code .meta} file on disk.

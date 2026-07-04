@@ -61,7 +61,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * sessions that happen to share the working directory's transcript folder. The one exception is
  * the AI's persistent <em>memory</em> folder ({@code memory/} next to the transcripts), which is
  * per-working-directory rather than per-session: what the AI has learned about the project is
- * part of its primed state, so it travels with the archive.
+ * part of its primed state, so it travels with the archive. The session's <em>task list</em>
+ * (the TODO tool's records, kept per session under the config dir's {@code tasks/} root) also
+ * travels.
  *
  * <h2>Archive layout</h2> A ZIP (no external dependency) with:
  * <pre>
@@ -70,6 +72,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *   transcript/&lt;sessionId&gt;.jsonl   the one session's transcript (verbatim)
  *   transcript/&lt;sessionId&gt;/...     externalized tool-result sidecar files, if any
  *   memory/...                     the AI's persistent memory files for the working directory, if any
+ *   tasks/...                      the session's task list (the TODO tool's records), if any
  *   workdir/...                    the entire working-directory tree
  * </pre>
  *
@@ -91,6 +94,8 @@ public final class SessionArchive {
 	private static final String TRANSCRIPT_PREFIX = "transcript/";
 
 	private static final String MEMORY_PREFIX = Transcripts.MEMORY_DIR + "/";
+
+	private static final String TASKS_PREFIX = Transcripts.TASKS_DIR + "/";
 
 	private static final String WORKDIR_PREFIX = "workdir/";
 
@@ -114,9 +119,11 @@ public final class SessionArchive {
 	 * be an explicitly-empty map)
 	 * @param hasMemory whether the archive carries the working directory's AI-memory folder
 	 * ({@code false} for archives written before memory capture existed)
+	 * @param hasTasks whether the archive carries the session's task list ({@code false} for
+	 * archives written before task capture existed)
 	 */
 	public record Manifest(int schemaVersion, String sessionId, String originalWorkingDir, Instant createdAt,
-			int messageCount, boolean hasMetaData, boolean hasMemory) {
+			int messageCount, boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
 	}
 
 	/**
@@ -178,8 +185,13 @@ public final class SessionArchive {
 		Path memoryDir = Path.of(transcript).getParent().resolve(Transcripts.MEMORY_DIR);
 		boolean hasMemory = Transcripts.isNonEmptyDir(memoryDir.toString());
 
+		// The session's task list lives under the tasks root (a sibling of the projects root),
+		// keyed by session id.
+		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, sessionId);
+		boolean hasTasks = tasksDir != null && Transcripts.isNonEmptyDir(tasksDir.toString());
+
 		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null,
-				hasMemory);
+				hasMemory, hasTasks);
 
 		try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveAbs))) {
 			writeBytes(zip, MANIFEST, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
@@ -193,6 +205,9 @@ public final class SessionArchive {
 			}
 			if (hasMemory) {
 				addTree(zip, memoryDir.toString(), MEMORY_PREFIX);
+			}
+			if (hasTasks) {
+				addTree(zip, tasksDir.toString(), TASKS_PREFIX);
 			}
 			addTree(zip, srcReal, WORKDIR_PREFIX);
 		}
@@ -220,10 +235,11 @@ public final class SessionArchive {
 	 * Restores an archive into {@code targetWorkingDir}: inflates the working tree, then re-homes
 	 * the transcript under {@code projectsRoot} with every path reference rewritten from the
 	 * archived working directory to {@code targetWorkingDir}, materializes the session's
-	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata, and
+	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata,
 	 * inflates the archived AI-memory folder into the target's projects folder (path references
 	 * in its text files rewritten the same way; a same-named pre-existing memory file at the
-	 * destination is overwritten).
+	 * destination is overwritten), and inflates the archived task list under the tasks root
+	 * keyed by the restore id.
 	 * @param newSessionId {@code false} keeps the archived id (a faithful restore/move);
 	 * {@code true} assigns a fresh id, forking an independent line on restore
 	 * @return the restored id, working directory, transcript path, and the manifest
@@ -261,6 +277,7 @@ public final class SessionArchive {
 		String toPath = targetReal;
 		String auxDir = targetProjectsDir.resolve(restoreId).toString();
 		String memoryDir = targetProjectsDir.resolve(Transcripts.MEMORY_DIR).toString();
+		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, restoreId);
 		Path targetMeta = targetProjectsDir.resolve(restoreId + SessionMetadata.EXTENSION);
 		String transcriptFileEntry = TRANSCRIPT_PREFIX + origId + ".jsonl";
 		String auxPrefix = TRANSCRIPT_PREFIX + origId + "/";
@@ -298,6 +315,15 @@ public final class SessionArchive {
 						extractRehomed(zip, e, safeResolve(memoryDir, rel), fromPath, toPath);
 					}
 				}
+				else if (name.startsWith(TASKS_PREFIX)) {
+					// Task records land under the tasks root keyed by the restore id (so a
+					// fork-on-restore re-keys them, like the .meta sidecar); their JSON is
+					// free-form text that may reference workdir paths, so re-home it too.
+					String rel = name.substring(TASKS_PREFIX.length());
+					if (!rel.isEmpty() && tasksDir != null) {
+						extractRehomed(zip, e, safeResolve(tasksDir.toString(), rel), fromPath, toPath);
+					}
+				}
 				else if (name.startsWith(WORKDIR_PREFIX)) {
 					String rel = name.substring(WORKDIR_PREFIX.length());
 					if (!rel.isEmpty()) {
@@ -326,7 +352,7 @@ public final class SessionArchive {
 			return new Manifest(m.path("schemaVersion").asInt(SCHEMA_VERSION), textOrNull(m, "sessionId"),
 					textOrNull(m, "originalWorkingDir"), parseInstant(textOrNull(m, "createdAt")),
 					m.path("messageCount").asInt(0), m.path("hasMetaData").asBoolean(false),
-					m.path("hasMemory").asBoolean(false));
+					m.path("hasMemory").asBoolean(false), m.path("hasTasks").asBoolean(false));
 		}
 	}
 
@@ -350,7 +376,7 @@ public final class SessionArchive {
 	// --- internals -----------------------------------------------------------------------
 
 	private static ObjectNode buildManifest(String sessionId, String originalWorkingDir, int messageCount,
-			boolean hasMetaData, boolean hasMemory) {
+			boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
 		ObjectNode m = MAPPER.createObjectNode();
 		m.put("schemaVersion", SCHEMA_VERSION);
 		m.put("sessionId", sessionId);
@@ -359,6 +385,7 @@ public final class SessionArchive {
 		m.put("messageCount", messageCount);
 		m.put("hasMetaData", hasMetaData);
 		m.put("hasMemory", hasMemory);
+		m.put("hasTasks", hasTasks);
 		return m;
 	}
 

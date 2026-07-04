@@ -255,6 +255,8 @@ a VM snapshot copy:
 4. Copies the AI's **persistent memory folder** (`memory/` next to the transcripts,
    re-homing path references in its text files), so the clone keeps what the AI has learned
    about the project.
+5. Copies the session's **task list** (the TODO tool's records, kept per session under the
+   config dir's `tasks/` root) across under the clone's new id.
 
 ```java
 SessionClone.Result clone = SessionClone.clone(sessionId,
@@ -287,6 +289,7 @@ metadata.ser                   the session's .meta bytes (Java-serialized map; o
 transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
 transcript/<sessionId>/...     externalized tool-result sidecar files, if any
 memory/...                     the AI's persistent memory files for the working directory, if any
+tasks/...                      the session's task list (the TODO tool's records), if any
 workdir/...                    the entire working-directory tree
 ```
 
@@ -304,8 +307,9 @@ String file = SessionArchive.create(s.sessionId(), "/work/original",
 
 Restore inflates the working tree into a fresh directory, re-homes the transcript (rewriting every
 path reference from the archived working directory to the new one), materializes the
-`<sessionId>.meta` sidecar so the restored session keeps its metadata, and inflates the archived
-memory files into the new directory's projects folder (path references rewritten the same way):
+`<sessionId>.meta` sidecar so the restored session keeps its metadata, inflates the archived
+memory files into the new directory's projects folder (path references rewritten the same way),
+and inflates the task list under the tasks root keyed by the restore id:
 
 ```java
 SessionArchive.RestoreResult r = SessionArchive.restore(file, "/work/restored");

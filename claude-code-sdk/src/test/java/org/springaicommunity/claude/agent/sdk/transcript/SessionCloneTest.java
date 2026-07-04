@@ -94,4 +94,36 @@ class SessionCloneTest {
 		assertThat(Files.readString(tgtMemory.resolve("MEMORY.md")))
 			.isEqualTo("main class at " + tgtReal + "/src/Foo.java");
 	}
+
+	@Test
+	void clonesTheTaskListUnderTheNewId(@TempDir Path source, @TempDir Path target, @TempDir Path config)
+			throws Exception {
+		// Tasks live under the config dir's tasks/ root (a sibling of projects/), keyed by
+		// session id — so this test uses a config-shaped layout rather than a bare projects dir.
+		Path projects = config.resolve("projects");
+		Files.writeString(source.resolve("Foo.java"), "class Foo {}");
+		String srcReal = source.toRealPath().toString();
+		String sid = "33333333-3333-3333-3333-333333333333";
+
+		Path srcProjDir = projects.resolve(SessionClone.sanitize(srcReal));
+		Files.createDirectories(srcProjDir);
+		ObjectNode line = mapper.createObjectNode();
+		line.put("type", "user");
+		line.put("sessionId", sid);
+		line.put("cwd", srcReal);
+		line.put("uuid", "u1");
+		Files.write(srcProjDir.resolve(sid + ".jsonl"), List.of(mapper.writeValueAsString(line)));
+
+		Files.createDirectories(config.resolve("tasks/" + sid));
+		Files.writeString(config.resolve("tasks/" + sid + "/1.json"),
+				"{\"id\":\"1\",\"subject\":\"Fix " + srcReal + "/Foo.java\",\"status\":\"pending\"}");
+
+		Files.delete(target);
+		SessionClone.Result r = SessionClone.clone(sid, source.toString(), target.toString(), projects.toString());
+
+		// The task records were re-keyed to the clone's id, with path references re-homed.
+		String tgtReal = target.toRealPath().toString();
+		assertThat(Files.readString(config.resolve("tasks/" + r.sessionId() + "/1.json")))
+			.isEqualTo("{\"id\":\"1\",\"subject\":\"Fix " + tgtReal + "/Foo.java\",\"status\":\"pending\"}");
+	}
 }

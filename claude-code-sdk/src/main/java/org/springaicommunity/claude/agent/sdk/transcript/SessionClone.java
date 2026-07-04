@@ -32,8 +32,8 @@ import java.util.UUID;
  * directory tree into a fresh directory and re-homes a copy of the conversation transcript
  * (new session id, paths rewritten from the source to the target directory) so the new
  * session resumes against its own files. The AI's persistent memory folder for the working
- * directory travels too. The original and the clone then move forward on independent timelines
- * without affecting each other.
+ * directory and the session's task list travel too. The original and the clone then move
+ * forward on independent timelines without affecting each other.
  *
  * <p>To capture a session as a portable, single-file archive instead (with metadata, and the
  * option to keep the original id on restore), see {@link SessionArchive}.
@@ -124,6 +124,14 @@ public final class SessionClone {
 		if (Files.isDirectory(srcMemory)) {
 			Transcripts.copyTreeRehoming(srcMemory.toString(),
 					targetProjectsDir.resolve(Transcripts.MEMORY_DIR).toString(), srcReal, targetReal);
+		}
+
+		// 6. Copy the session's task list (the TODO tool's records under the tasks root, keyed
+		// by session id) across under the new id, re-homing path references.
+		Path srcTasks = Transcripts.tasksDirFor(projectsRoot, sessionId);
+		if (srcTasks != null && Files.isDirectory(srcTasks)) {
+			Transcripts.copyTreeRehoming(srcTasks.toString(),
+					Transcripts.tasksDirFor(projectsRoot, newId).toString(), srcReal, targetReal);
 		}
 
 		return new Result(newId, targetDir, targetTranscript.toString());

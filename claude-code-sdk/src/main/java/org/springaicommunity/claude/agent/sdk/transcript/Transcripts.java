@@ -54,9 +54,30 @@ final class Transcripts {
 	 */
 	static final String MEMORY_DIR = "memory";
 
+	/**
+	 * The name of the folder holding per-session task lists (the TODO tool's records), a
+	 * <em>sibling of the projects root</em> under the Claude config dir: each session's tasks
+	 * live in {@code <configDir>/tasks/<sessionId>/} as one JSON file per task (plus a
+	 * {@code .lock}). Unlike {@link #MEMORY_DIR}, which is per working directory, this is keyed
+	 * by session id.
+	 */
+	static final String TASKS_DIR = "tasks";
+
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private Transcripts() {
+	}
+
+	/**
+	 * The task-list folder for {@code sessionId}, derived from {@code projectsRoot} (the tasks
+	 * root is the projects root's sibling {@code tasks/} folder — verified against the CLI:
+	 * {@code <configDir>/projects/...} and {@code <configDir>/tasks/<sessionId>/}).
+	 * @return the folder (which may not exist), or {@code null} if {@code projectsRoot} has no
+	 * parent to hang the tasks root off
+	 */
+	static Path tasksDirFor(String projectsRoot, String sessionId) {
+		Path parent = Path.of(projectsRoot).toAbsolutePath().normalize().getParent();
+		return parent == null ? null : parent.resolve(TASKS_DIR).resolve(sessionId);
 	}
 
 	/** Recursively copies the file tree rooted at {@code source} into {@code target}. */
