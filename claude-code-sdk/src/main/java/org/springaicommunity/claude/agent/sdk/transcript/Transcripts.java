@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -80,6 +81,27 @@ final class Transcripts {
 		return parent == null ? null : parent.resolve(TASKS_DIR).resolve(sessionId);
 	}
 
+	/**
+	 * Whether {@code p} is the CLI's {@code .lock} file (kept in a session's tasks folder).
+	 * It mirrors the live app's internal locking state, so it is never carried into an archive,
+	 * clone, or restore — a new session must start with its own lock state, or it might refuse
+	 * to update the task list.
+	 */
+	static boolean isLockFile(Path p) {
+		Path name = p.getFileName();
+		return name != null && name.toString().equals(".lock");
+	}
+
+	/** Whether {@code dir} holds any actual task records ({@code .lock} alone doesn't count). */
+	static boolean hasTaskRecords(Path dir) throws IOException {
+		if (dir == null || !Files.isDirectory(dir)) {
+			return false;
+		}
+		try (Stream<Path> walk = Files.walk(dir)) {
+			return walk.anyMatch(p -> Files.isRegularFile(p) && !isLockFile(p));
+		}
+	}
+
 	/** Recursively copies the file tree rooted at {@code source} into {@code target}. */
 	static void copyTree(String source, String target) throws IOException {
 		Path sourceRoot = Path.of(source);
@@ -106,10 +128,16 @@ final class Transcripts {
 	/**
 	 * As {@link #copyTree} but re-homing each file's content: every occurrence of
 	 * {@code fromPath} in a text file is rewritten to {@code toPath} (see
-	 * {@link #rehomeFileBytes}). Used for the memory folder, whose free-form files may reference
-	 * absolute paths of the working directory they were written in.
+	 * {@link #rehomeFileBytes}). Used for the memory and tasks folders, whose free-form files
+	 * may reference absolute paths of the working directory they were written in.
 	 */
 	static void copyTreeRehoming(String source, String target, String fromPath, String toPath) throws IOException {
+		copyTreeRehoming(source, target, fromPath, toPath, p -> true);
+	}
+
+	/** As {@link #copyTreeRehoming} but copying only the entries {@code include} accepts. */
+	static void copyTreeRehoming(String source, String target, String fromPath, String toPath,
+			Predicate<Path> include) throws IOException {
 		Path sourceRoot = Path.of(source);
 		Path targetRoot = Path.of(target);
 		List<Path> paths;
@@ -117,6 +145,9 @@ final class Transcripts {
 			paths = walk.sorted().toList();
 		}
 		for (Path src : paths) {
+			if (!include.test(src)) {
+				continue;
+			}
 			Path dst = targetRoot.resolve(sourceRoot.relativize(src).toString());
 			if (Files.isDirectory(src)) {
 				Files.createDirectories(dst);

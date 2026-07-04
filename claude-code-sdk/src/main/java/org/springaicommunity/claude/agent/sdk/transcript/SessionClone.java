@@ -127,11 +127,13 @@ public final class SessionClone {
 		}
 
 		// 6. Copy the session's task list (the TODO tool's records under the tasks root, keyed
-		// by session id) across under the new id, re-homing path references.
+		// by session id) across under the new id, re-homing path references. The CLI's .lock
+		// stays behind — it mirrors the live app's lock state, not the tasks.
 		Path srcTasks = Transcripts.tasksDirFor(projectsRoot, sessionId);
 		if (srcTasks != null && Files.isDirectory(srcTasks)) {
 			Transcripts.copyTreeRehoming(srcTasks.toString(),
-					Transcripts.tasksDirFor(projectsRoot, newId).toString(), srcReal, targetReal);
+					Transcripts.tasksDirFor(projectsRoot, newId).toString(), srcReal, targetReal,
+					p -> !Transcripts.isLockFile(p));
 		}
 
 		return new Result(newId, targetDir, targetTranscript.toString());

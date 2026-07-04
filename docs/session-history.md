@@ -256,7 +256,9 @@ a VM snapshot copy:
    re-homing path references in its text files), so the clone keeps what the AI has learned
    about the project.
 5. Copies the session's **task list** (the TODO tool's records, kept per session under the
-   config dir's `tasks/` root) across under the clone's new id.
+   config dir's `tasks/` root) across under the clone's new id — excluding the CLI's
+   transient `.lock`, which mirrors the live app's lock state and must not leak into a new
+   session.
 
 ```java
 SessionClone.Result clone = SessionClone.clone(sessionId,
@@ -289,7 +291,7 @@ metadata.ser                   the session's .meta bytes (Java-serialized map; o
 transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
 transcript/<sessionId>/...     externalized tool-result sidecar files, if any
 memory/...                     the AI's persistent memory files for the working directory, if any
-tasks/...                      the session's task list (the TODO tool's records), if any
+tasks/...                      the session's task list (the TODO tool's records, minus the CLI's transient .lock), if any
 workdir/...                    the entire working-directory tree
 ```
 

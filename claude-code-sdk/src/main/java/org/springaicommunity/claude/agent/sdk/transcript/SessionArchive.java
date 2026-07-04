@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -72,7 +73,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *   transcript/&lt;sessionId&gt;.jsonl   the one session's transcript (verbatim)
  *   transcript/&lt;sessionId&gt;/...     externalized tool-result sidecar files, if any
  *   memory/...                     the AI's persistent memory files for the working directory, if any
- *   tasks/...                      the session's task list (the TODO tool's records), if any
+ *   tasks/...                      the session's task list (the TODO tool's records, minus the
+ *                                  CLI's transient {@code .lock}), if any
  *   workdir/...                    the entire working-directory tree
  * </pre>
  *
@@ -186,9 +188,10 @@ public final class SessionArchive {
 		boolean hasMemory = Transcripts.isNonEmptyDir(memoryDir.toString());
 
 		// The session's task list lives under the tasks root (a sibling of the projects root),
-		// keyed by session id.
+		// keyed by session id. The CLI's .lock is excluded — it mirrors the live app's lock
+		// state, not the tasks — and doesn't count toward hasTasks.
 		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, sessionId);
-		boolean hasTasks = tasksDir != null && Transcripts.isNonEmptyDir(tasksDir.toString());
+		boolean hasTasks = Transcripts.hasTaskRecords(tasksDir);
 
 		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null,
 				hasMemory, hasTasks);
@@ -207,7 +210,7 @@ public final class SessionArchive {
 				addTree(zip, memoryDir.toString(), MEMORY_PREFIX);
 			}
 			if (hasTasks) {
-				addTree(zip, tasksDir.toString(), TASKS_PREFIX);
+				addTree(zip, tasksDir.toString(), TASKS_PREFIX, p -> !Transcripts.isLockFile(p));
 			}
 			addTree(zip, srcReal, WORKDIR_PREFIX);
 		}
@@ -318,9 +321,11 @@ public final class SessionArchive {
 				else if (name.startsWith(TASKS_PREFIX)) {
 					// Task records land under the tasks root keyed by the restore id (so a
 					// fork-on-restore re-keys them, like the .meta sidecar); their JSON is
-					// free-form text that may reference workdir paths, so re-home it too.
+					// free-form text that may reference workdir paths, so re-home it too. The
+					// CLI's .lock is skipped even if an older archive carried one — restoring
+					// it could make the new session refuse to update its task list.
 					String rel = name.substring(TASKS_PREFIX.length());
-					if (!rel.isEmpty() && tasksDir != null) {
+					if (!rel.isEmpty() && tasksDir != null && !Transcripts.isLockFile(Path.of(rel))) {
 						extractRehomed(zip, e, safeResolve(tasksDir.toString(), rel), fromPath, toPath);
 					}
 				}
@@ -410,10 +415,16 @@ public final class SessionArchive {
 
 	/** Adds every file under {@code root} to the zip, prefixing entry names with {@code entryPrefix}. */
 	private static void addTree(ZipOutputStream zip, String root, String entryPrefix) throws IOException {
+		addTree(zip, root, entryPrefix, p -> true);
+	}
+
+	/** As {@link #addTree(ZipOutputStream, String, String)} but adding only entries {@code include} accepts. */
+	private static void addTree(ZipOutputStream zip, String root, String entryPrefix, Predicate<Path> include)
+			throws IOException {
 		Path rootPath = Path.of(root);
 		List<Path> paths;
 		try (Stream<Path> walk = Files.walk(rootPath)) {
-			paths = walk.sorted().toList();
+			paths = walk.filter(include).sorted().toList();
 		}
 		for (Path p : paths) {
 			String rel = rootPath.relativize(p).toString().replace('\\', '/');

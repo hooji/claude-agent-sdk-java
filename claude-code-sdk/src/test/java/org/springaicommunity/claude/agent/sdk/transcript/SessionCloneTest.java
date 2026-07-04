@@ -117,13 +117,16 @@ class SessionCloneTest {
 		Files.createDirectories(config.resolve("tasks/" + sid));
 		Files.writeString(config.resolve("tasks/" + sid + "/1.json"),
 				"{\"id\":\"1\",\"subject\":\"Fix " + srcReal + "/Foo.java\",\"status\":\"pending\"}");
+		Files.writeString(config.resolve("tasks/" + sid + "/.lock"), "");
 
 		Files.delete(target);
 		SessionClone.Result r = SessionClone.clone(sid, source.toString(), target.toString(), projects.toString());
 
-		// The task records were re-keyed to the clone's id, with path references re-homed.
+		// The task records were re-keyed to the clone's id, with path references re-homed —
+		// but never the CLI's .lock, which mirrors the live app's internal lock state.
 		String tgtReal = target.toRealPath().toString();
 		assertThat(Files.readString(config.resolve("tasks/" + r.sessionId() + "/1.json")))
 			.isEqualTo("{\"id\":\"1\",\"subject\":\"Fix " + tgtReal + "/Foo.java\",\"status\":\"pending\"}");
+		assertThat(config.resolve("tasks/" + r.sessionId() + "/.lock")).doesNotExist();
 	}
 }

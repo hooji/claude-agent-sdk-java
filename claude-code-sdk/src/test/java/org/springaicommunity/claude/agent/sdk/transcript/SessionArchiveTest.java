@@ -217,20 +217,34 @@ class SessionArchiveTest {
 		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
 		assertThat(SessionArchive.readManifest(archive.toString()).hasTasks()).isTrue();
 
-		// Keep-id restore into a different config: tasks land under its tasks root, re-homed.
+		// Keep-id restore into a different config: tasks land under its tasks root, re-homed —
+		// but never the CLI's .lock, which mirrors the live app's internal lock state.
 		Path target = tmp.resolve("restored");
 		SessionArchive.restore(archive.toString(), target.toString(), false,
 				otherConfig.resolve("projects").toString());
 		String tgtReal = target.toRealPath().toString();
 		assertThat(Files.readString(otherConfig.resolve("tasks/" + sid + "/1.json")))
 			.isEqualTo("{\"id\":\"1\",\"subject\":\"Fix " + tgtReal + "/src/Foo.java\",\"status\":\"pending\"}");
-		assertThat(otherConfig.resolve("tasks/" + sid + "/.lock")).exists();
+		assertThat(otherConfig.resolve("tasks/" + sid + "/.lock")).doesNotExist();
 
 		// New-id restore: the task folder is re-keyed to the minted id, like the .meta sidecar.
 		Path forked = tmp.resolve("forked");
 		SessionArchive.RestoreResult r = SessionArchive.restore(archive.toString(), forked.toString(), true,
 				projects.toString());
 		assertThat(config.resolve("tasks/" + r.sessionId() + "/1.json")).exists();
+	}
+
+	@Test
+	void taskFolderWithOnlyALockFileIsNotCaptured(@TempDir Path source, @TempDir Path config, @TempDir Path tmp)
+			throws Exception {
+		Path projects = config.resolve("projects");
+		seedSession(source, projects);
+		Files.createDirectories(config.resolve("tasks/" + sid));
+		Files.writeString(config.resolve("tasks/" + sid + "/.lock"), "");
+
+		Path archive = tmp.resolve("lock-only.zip");
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).hasTasks()).isFalse();
 	}
 
 	@Test
