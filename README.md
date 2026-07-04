@@ -46,6 +46,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Token-level streaming** (`StreamEvent`) | `partialTextStream()` / `partialEvents()` on the async client surface the CLI's `--include-partial-messages` deltas as they are generated. | [docs/partial-streaming.md](docs/partial-streaming.md) |
 | **Fat-jar releases** | A `claude-code-sdk-all` uber jar (SDK + all runtime dependencies) published as a GitHub Release on every `v*` tag. | [docs/releasing.md](docs/releasing.md) |
 | **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
+| **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
 
 ## Requirements
 
