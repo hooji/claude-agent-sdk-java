@@ -169,6 +169,38 @@ class SessionArchiveTest {
 	}
 
 	@Test
+	void archivesAndRestoresTheMemoryFolder(@TempDir Path source, @TempDir Path projects, @TempDir Path tmp)
+			throws Exception {
+		seedSession(source, projects);
+		String srcReal = source.toRealPath().toString();
+
+		// The AI's persistent memory folder sits next to the transcript in the projects dir.
+		Path srcProjDir = projects.resolve(TranscriptDirectory.sanitize(srcReal));
+		Files.createDirectories(srcProjDir.resolve("memory/topics"));
+		Files.writeString(srcProjDir.resolve("memory/MEMORY.md"),
+				"- [Foo](topics/foo.md) — main class at " + srcReal + "/src/Foo.java");
+		Files.writeString(srcProjDir.resolve("memory/topics/build.md"), "no path references here");
+		byte[] binary = { (byte) 0xFF, (byte) 0xFE, 0x00, (byte) 0x80 }; // not valid UTF-8
+		Files.write(srcProjDir.resolve("memory/topics/blob.bin"), binary);
+
+		Path archive = tmp.resolve("with-memory.zip");
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).hasMemory()).isTrue();
+
+		Path target = tmp.resolve("restored");
+		SessionArchive.restore(archive.toString(), target.toString(), false, projects.toString());
+		String tgtReal = target.toRealPath().toString();
+
+		// Memory restored into the target's projects folder, path references rewritten...
+		Path tgtMemory = projects.resolve(TranscriptDirectory.sanitize(tgtReal)).resolve("memory");
+		assertThat(Files.readString(tgtMemory.resolve("MEMORY.md")))
+			.isEqualTo("- [Foo](topics/foo.md) — main class at " + tgtReal + "/src/Foo.java");
+		assertThat(Files.readString(tgtMemory.resolve("topics/build.md"))).isEqualTo("no path references here");
+		// ...and non-text content copied verbatim, never rewritten.
+		assertThat(Files.readAllBytes(tgtMemory.resolve("topics/blob.bin"))).isEqualTo(binary);
+	}
+
+	@Test
 	void archiveWithoutMetaDataHasNoneToRead(@TempDir Path source, @TempDir Path projects, @TempDir Path tmp)
 			throws Exception {
 		seedSession(source, projects);
@@ -177,6 +209,7 @@ class SessionArchiveTest {
 
 		assertThat(SessionArchive.readManifest(archive.toString()).hasMetaData()).isFalse();
 		assertThat(SessionArchive.readMetaData(archive.toString())).isEmpty();
+		assertThat(SessionArchive.readManifest(archive.toString()).hasMemory()).isFalse();
 
 		// Restoring an archive with no metadata creates no .meta file; the load yields an empty map.
 		Path target = tmp.resolve("restored");

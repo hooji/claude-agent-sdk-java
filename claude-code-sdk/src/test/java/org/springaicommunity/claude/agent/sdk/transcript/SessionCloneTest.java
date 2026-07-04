@@ -59,6 +59,10 @@ class SessionCloneTest {
 		Files.write(srcProjDir.resolve(sid + ".jsonl"),
 				List.of(mapper.writeValueAsString(l1), mapper.writeValueAsString(l2)));
 
+		// The AI's persistent memory folder next to the transcript, referencing a source path.
+		Files.createDirectories(srcProjDir.resolve("memory"));
+		Files.writeString(srcProjDir.resolve("memory/MEMORY.md"), "main class at " + srcReal + "/src/Foo.java");
+
 		// targetDir provided by @TempDir is empty -> allowed; remove so clone creates it fresh too
 		Files.delete(target);
 
@@ -84,5 +88,10 @@ class SessionCloneTest {
 		JsonNode c2 = mapper.readTree(lines.get(1));
 		assertThat(c2.get("sessionId").asText()).isEqualTo(r.sessionId());
 		assertThat(c2.get("toolUseResult").get("filePath").asText()).isEqualTo(tgtReal + "/src/Foo.java");
+
+		// 4. the memory folder was carried across, with its path references re-homed
+		Path tgtMemory = projects.resolve(SessionClone.sanitize(tgtReal)).resolve("memory");
+		assertThat(Files.readString(tgtMemory.resolve("MEMORY.md")))
+			.isEqualTo("main class at " + tgtReal + "/src/Foo.java");
 	}
 }

@@ -31,8 +31,9 @@ import java.util.UUID;
  * <p>A clone is more like a UTM VM snapshot copy: it duplicates the session's entire working
  * directory tree into a fresh directory and re-homes a copy of the conversation transcript
  * (new session id, paths rewritten from the source to the target directory) so the new
- * session resumes against its own files. The original and the clone then move forward on
- * independent timelines without affecting each other.
+ * session resumes against its own files. The AI's persistent memory folder for the working
+ * directory travels too. The original and the clone then move forward on independent timelines
+ * without affecting each other.
  *
  * <p>To capture a session as a portable, single-file archive instead (with metadata, and the
  * option to keep the original id on restore), see {@link SessionArchive}.
@@ -114,6 +115,15 @@ public final class SessionClone {
 		if (Files.isRegularFile(srcMeta)) {
 			Files.copy(srcMeta, targetProjectsDir.resolve(newId + SessionMetadata.EXTENSION),
 					StandardCopyOption.REPLACE_EXISTING);
+		}
+
+		// 5. Copy the AI's persistent memory folder (the memory/ subdir next to the transcripts,
+		// shared per working directory), re-homing path references in its text files, so the
+		// clone keeps what the AI has learned about the project.
+		Path srcMemory = Path.of(srcTranscript).getParent().resolve(Transcripts.MEMORY_DIR);
+		if (Files.isDirectory(srcMemory)) {
+			Transcripts.copyTreeRehoming(srcMemory.toString(),
+					targetProjectsDir.resolve(Transcripts.MEMORY_DIR).toString(), srcReal, targetReal);
 		}
 
 		return new Result(newId, targetDir, targetTranscript.toString());

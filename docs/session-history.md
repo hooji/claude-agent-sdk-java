@@ -252,6 +252,9 @@ a VM snapshot copy:
 2. Re-homes a **copy of the transcript** under a fresh session id, rewriting every path
    reference from the source directory to the target.
 3. Copies any externalized tool-result files alongside it.
+4. Copies the AI's **persistent memory folder** (`memory/` next to the transcripts,
+   re-homing path references in its text files), so the clone keeps what the AI has learned
+   about the project.
 
 ```java
 SessionClone.Result clone = SessionClone.clone(sessionId,
@@ -275,13 +278,15 @@ to **keeping the original session id** on restore, so the restored copy *is* the
 
 `SessionArchive.create(sessionId, workingDir, targetArchive)` writes a ZIP (no external
 dependency) containing **only the specified session** — never the siblings that share its
-transcript folder:
+transcript folder (the AI-memory folder, which is per-working-directory rather than
+per-session, is the one shared piece that travels):
 
 ```
 manifest.json                  provenance (see SessionArchive.Manifest)
 metadata.ser                   the session's .meta bytes (Java-serialized map; omitted if no .meta)
 transcript/<sessionId>.jsonl   the one session's transcript (a fork already embeds its ancestors)
 transcript/<sessionId>/...     externalized tool-result sidecar files, if any
+memory/...                     the AI's persistent memory files for the working directory, if any
 workdir/...                    the entire working-directory tree
 ```
 
@@ -298,8 +303,9 @@ String file = SessionArchive.create(s.sessionId(), "/work/original",
 ```
 
 Restore inflates the working tree into a fresh directory, re-homes the transcript (rewriting every
-path reference from the archived working directory to the new one), and materializes the
-`<sessionId>.meta` sidecar so the restored session keeps its metadata:
+path reference from the archived working directory to the new one), materializes the
+`<sessionId>.meta` sidecar so the restored session keeps its metadata, and inflates the archived
+memory files into the new directory's projects folder (path references rewritten the same way):
 
 ```java
 SessionArchive.RestoreResult r = SessionArchive.restore(file, "/work/restored");
