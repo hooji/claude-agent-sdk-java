@@ -30,6 +30,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -58,7 +59,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *
  * <p><b>Scope.</b> An archive contains only the <em>specified</em> session's transcript (a fork
  * already embeds its ancestors' history, so it stays self-contained) — never the sibling
- * sessions that happen to share the working directory's transcript folder.
+ * sessions that happen to share the working directory's transcript folder. The one exception is
+ * the AI's persistent <em>memory</em> folder ({@code memory/} next to the transcripts), which is
+ * per-working-directory rather than per-session: what the AI has learned about the project is
+ * part of its primed state, so it travels with the archive. The session's <em>task list</em>
+ * (the TODO tool's records, kept per session under the config dir's {@code tasks/} root) also
+ * travels.
  *
  * <h2>Archive layout</h2> A ZIP (no external dependency) with:
  * <pre>
@@ -66,6 +72,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *   metadata.ser                   the session's {@code .meta} bytes (Java-serialized map; omitted if no .meta)
  *   transcript/&lt;sessionId&gt;.jsonl   the one session's transcript (verbatim)
  *   transcript/&lt;sessionId&gt;/...     externalized tool-result sidecar files, if any
+ *   memory/...                     the AI's persistent memory files for the working directory, if any
+ *   tasks/...                      the session's task list (the TODO tool's records, minus the
+ *                                  CLI's transient {@code .lock}), if any
  *   workdir/...                    the entire working-directory tree
  * </pre>
  *
@@ -85,6 +94,10 @@ public final class SessionArchive {
 	private static final String METADATA = "metadata.ser";
 
 	private static final String TRANSCRIPT_PREFIX = "transcript/";
+
+	private static final String MEMORY_PREFIX = Transcripts.MEMORY_DIR + "/";
+
+	private static final String TASKS_PREFIX = Transcripts.TASKS_DIR + "/";
 
 	private static final String WORKDIR_PREFIX = "workdir/";
 
@@ -106,9 +119,13 @@ public final class SessionArchive {
 	 * @param messageCount number of conversation messages in the transcript
 	 * @param hasMetaData whether the archive carries an embedded {@code .meta} (which may itself
 	 * be an explicitly-empty map)
+	 * @param hasMemory whether the archive carries the working directory's AI-memory folder
+	 * ({@code false} for archives written before memory capture existed)
+	 * @param hasTasks whether the archive carries the session's task list ({@code false} for
+	 * archives written before task capture existed)
 	 */
 	public record Manifest(int schemaVersion, String sessionId, String originalWorkingDir, Instant createdAt,
-			int messageCount, boolean hasMetaData) {
+			int messageCount, boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
 	}
 
 	/**
@@ -134,7 +151,8 @@ public final class SessionArchive {
 	/**
 	 * Archives {@code sessionId} (which ran in {@code workingDir}) to {@code targetArchive}, with
 	 * an explicit {@code projectsRoot}. The session's metadata is picked up from its
-	 * {@code <id>.meta} sidecar (omitted if there is none).
+	 * {@code <id>.meta} sidecar, and the working directory's AI-memory folder from the
+	 * {@code memory/} folder next to the transcript (each omitted if there is none).
 	 * @return the archive file path actually written (absolute, normalized)
 	 * @throws IllegalArgumentException if the working dir/transcript can't be found or the target
 	 * archive would sit inside the working tree being captured
@@ -149,9 +167,10 @@ public final class SessionArchive {
 		String transcript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
 
 		// The archive must live outside the tree we're about to walk, or it would try to
-		// capture itself mid-write.
+		// capture itself mid-write. Compare symlink-resolved paths on both sides — srcReal is
+		// already resolved, and e.g. macOS temp dirs live under /var -> /private/var.
 		Path archiveAbs = Path.of(targetArchive).toAbsolutePath().normalize();
-		if (archiveAbs.startsWith(srcReal)) {
+		if (canonicalizeExistingPrefix(archiveAbs).startsWith(srcReal)) {
 			throw new IllegalArgumentException("targetArchive must not be inside workingDir: " + targetArchive);
 		}
 		if (archiveAbs.getParent() != null) {
@@ -163,7 +182,19 @@ public final class SessionArchive {
 		Path metaFile = Path.of(SessionMetadata.fileFor(transcript));
 		byte[] metaBytes = Files.isRegularFile(metaFile) ? Files.readAllBytes(metaFile) : null;
 
-		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null);
+		// The AI's persistent memory folder sits next to the transcripts (per working
+		// directory, not per session) — part of the primed state, so it travels too.
+		Path memoryDir = Path.of(transcript).getParent().resolve(Transcripts.MEMORY_DIR);
+		boolean hasMemory = Transcripts.isNonEmptyDir(memoryDir.toString());
+
+		// The session's task list lives under the tasks root (a sibling of the projects root),
+		// keyed by session id. The CLI's .lock is excluded — it mirrors the live app's lock
+		// state, not the tasks — and doesn't count toward hasTasks.
+		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, sessionId);
+		boolean hasTasks = Transcripts.hasTaskRecords(tasksDir);
+
+		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null,
+				hasMemory, hasTasks);
 
 		try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveAbs))) {
 			writeBytes(zip, MANIFEST, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
@@ -174,6 +205,12 @@ public final class SessionArchive {
 			Path aux = Path.of(transcript).getParent().resolve(sessionId);
 			if (Files.isDirectory(aux)) {
 				addTree(zip, aux.toString(), TRANSCRIPT_PREFIX + sessionId + "/");
+			}
+			if (hasMemory) {
+				addTree(zip, memoryDir.toString(), MEMORY_PREFIX);
+			}
+			if (hasTasks) {
+				addTree(zip, tasksDir.toString(), TASKS_PREFIX, p -> !Transcripts.isLockFile(p));
 			}
 			addTree(zip, srcReal, WORKDIR_PREFIX);
 		}
@@ -200,8 +237,12 @@ public final class SessionArchive {
 	/**
 	 * Restores an archive into {@code targetWorkingDir}: inflates the working tree, then re-homes
 	 * the transcript under {@code projectsRoot} with every path reference rewritten from the
-	 * archived working directory to {@code targetWorkingDir}, and materializes the session's
-	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata.
+	 * archived working directory to {@code targetWorkingDir}, materializes the session's
+	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata,
+	 * inflates the archived AI-memory folder into the target's projects folder (path references
+	 * in its text files rewritten the same way; a same-named pre-existing memory file at the
+	 * destination is overwritten), and inflates the archived task list under the tasks root
+	 * keyed by the restore id.
 	 * @param newSessionId {@code false} keeps the archived id (a faithful restore/move);
 	 * {@code true} assigns a fresh id, forking an independent line on restore
 	 * @return the restored id, working directory, transcript path, and the manifest
@@ -238,6 +279,8 @@ public final class SessionArchive {
 		String fromPath = manifest.originalWorkingDir();
 		String toPath = targetReal;
 		String auxDir = targetProjectsDir.resolve(restoreId).toString();
+		String memoryDir = targetProjectsDir.resolve(Transcripts.MEMORY_DIR).toString();
+		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, restoreId);
 		Path targetMeta = targetProjectsDir.resolve(restoreId + SessionMetadata.EXTENSION);
 		String transcriptFileEntry = TRANSCRIPT_PREFIX + origId + ".jsonl";
 		String auxPrefix = TRANSCRIPT_PREFIX + origId + "/";
@@ -267,6 +310,25 @@ public final class SessionArchive {
 				else if (name.startsWith(auxPrefix)) {
 					extract(zip, e, safeResolve(auxDir, name.substring(auxPrefix.length())));
 				}
+				else if (name.startsWith(MEMORY_PREFIX)) {
+					// Memory files are free-form text the AI wrote; re-home any absolute path
+					// references so they stay accurate for the restored working directory.
+					String rel = name.substring(MEMORY_PREFIX.length());
+					if (!rel.isEmpty()) {
+						extractRehomed(zip, e, safeResolve(memoryDir, rel), fromPath, toPath);
+					}
+				}
+				else if (name.startsWith(TASKS_PREFIX)) {
+					// Task records land under the tasks root keyed by the restore id (so a
+					// fork-on-restore re-keys them, like the .meta sidecar); their JSON is
+					// free-form text that may reference workdir paths, so re-home it too. The
+					// CLI's .lock is skipped even if an older archive carried one — restoring
+					// it could make the new session refuse to update its task list.
+					String rel = name.substring(TASKS_PREFIX.length());
+					if (!rel.isEmpty() && tasksDir != null && !Transcripts.isLockFile(Path.of(rel))) {
+						extractRehomed(zip, e, safeResolve(tasksDir.toString(), rel), fromPath, toPath);
+					}
+				}
 				else if (name.startsWith(WORKDIR_PREFIX)) {
 					String rel = name.substring(WORKDIR_PREFIX.length());
 					if (!rel.isEmpty()) {
@@ -294,7 +356,8 @@ public final class SessionArchive {
 			}
 			return new Manifest(m.path("schemaVersion").asInt(SCHEMA_VERSION), textOrNull(m, "sessionId"),
 					textOrNull(m, "originalWorkingDir"), parseInstant(textOrNull(m, "createdAt")),
-					m.path("messageCount").asInt(0), m.path("hasMetaData").asBoolean(false));
+					m.path("messageCount").asInt(0), m.path("hasMetaData").asBoolean(false),
+					m.path("hasMemory").asBoolean(false), m.path("hasTasks").asBoolean(false));
 		}
 	}
 
@@ -318,7 +381,7 @@ public final class SessionArchive {
 	// --- internals -----------------------------------------------------------------------
 
 	private static ObjectNode buildManifest(String sessionId, String originalWorkingDir, int messageCount,
-			boolean hasMetaData) {
+			boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
 		ObjectNode m = MAPPER.createObjectNode();
 		m.put("schemaVersion", SCHEMA_VERSION);
 		m.put("sessionId", sessionId);
@@ -326,6 +389,8 @@ public final class SessionArchive {
 		m.put("createdAt", Instant.now().toString());
 		m.put("messageCount", messageCount);
 		m.put("hasMetaData", hasMetaData);
+		m.put("hasMemory", hasMemory);
+		m.put("hasTasks", hasTasks);
 		return m;
 	}
 
@@ -350,10 +415,16 @@ public final class SessionArchive {
 
 	/** Adds every file under {@code root} to the zip, prefixing entry names with {@code entryPrefix}. */
 	private static void addTree(ZipOutputStream zip, String root, String entryPrefix) throws IOException {
+		addTree(zip, root, entryPrefix, p -> true);
+	}
+
+	/** As {@link #addTree(ZipOutputStream, String, String)} but adding only entries {@code include} accepts. */
+	private static void addTree(ZipOutputStream zip, String root, String entryPrefix, Predicate<Path> include)
+			throws IOException {
 		Path rootPath = Path.of(root);
 		List<Path> paths;
 		try (Stream<Path> walk = Files.walk(rootPath)) {
-			paths = walk.sorted().toList();
+			paths = walk.filter(include).sorted().toList();
 		}
 		for (Path p : paths) {
 			String rel = rootPath.relativize(p).toString().replace('\\', '/');
@@ -387,6 +458,47 @@ public final class SessionArchive {
 		Files.createDirectories(dstPath.getParent());
 		try (InputStream in = zip.getInputStream(e)) {
 			Files.copy(in, dstPath, StandardCopyOption.REPLACE_EXISTING);
+		}
+	}
+
+	/** As {@link #extract} but re-homing path references in text content (binary copied verbatim). */
+	private static void extractRehomed(ZipFile zip, ZipEntry e, String dst, String fromPath, String toPath)
+			throws IOException {
+		Path dstPath = Path.of(dst);
+		if (e.isDirectory()) {
+			Files.createDirectories(dstPath);
+			return;
+		}
+		Files.createDirectories(dstPath.getParent());
+		byte[] bytes;
+		try (InputStream in = zip.getInputStream(e)) {
+			bytes = in.readAllBytes();
+		}
+		Files.write(dstPath, Transcripts.rehomeFileBytes(bytes, fromPath, toPath));
+	}
+
+	/**
+	 * Resolves symlinks in the deepest <em>existing</em> ancestor of {@code p} and re-appends the
+	 * not-yet-existing remainder, so a containment check against an already-resolved path compares
+	 * like with like (the archive file itself does not exist yet when the check runs).
+	 */
+	private static Path canonicalizeExistingPrefix(Path p) {
+		Path existing = p;
+		Path tail = null;
+		while (existing != null && !Files.exists(existing)) {
+			Path name = existing.getFileName();
+			tail = tail == null ? name : name.resolve(tail);
+			existing = existing.getParent();
+		}
+		if (existing == null) {
+			return p;
+		}
+		try {
+			Path real = existing.toRealPath();
+			return tail == null ? real : real.resolve(tail);
+		}
+		catch (IOException e) {
+			return p;
 		}
 	}
 

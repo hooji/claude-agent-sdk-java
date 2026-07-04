@@ -169,6 +169,85 @@ class SessionArchiveTest {
 	}
 
 	@Test
+	void archivesAndRestoresTheMemoryFolder(@TempDir Path source, @TempDir Path projects, @TempDir Path tmp)
+			throws Exception {
+		seedSession(source, projects);
+		String srcReal = source.toRealPath().toString();
+
+		// The AI's persistent memory folder sits next to the transcript in the projects dir.
+		Path srcProjDir = projects.resolve(TranscriptDirectory.sanitize(srcReal));
+		Files.createDirectories(srcProjDir.resolve("memory/topics"));
+		Files.writeString(srcProjDir.resolve("memory/MEMORY.md"),
+				"- [Foo](topics/foo.md) — main class at " + srcReal + "/src/Foo.java");
+		Files.writeString(srcProjDir.resolve("memory/topics/build.md"), "no path references here");
+		byte[] binary = { (byte) 0xFF, (byte) 0xFE, 0x00, (byte) 0x80 }; // not valid UTF-8
+		Files.write(srcProjDir.resolve("memory/topics/blob.bin"), binary);
+
+		Path archive = tmp.resolve("with-memory.zip");
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).hasMemory()).isTrue();
+
+		Path target = tmp.resolve("restored");
+		SessionArchive.restore(archive.toString(), target.toString(), false, projects.toString());
+		String tgtReal = target.toRealPath().toString();
+
+		// Memory restored into the target's projects folder, path references rewritten...
+		Path tgtMemory = projects.resolve(TranscriptDirectory.sanitize(tgtReal)).resolve("memory");
+		assertThat(Files.readString(tgtMemory.resolve("MEMORY.md")))
+			.isEqualTo("- [Foo](topics/foo.md) — main class at " + tgtReal + "/src/Foo.java");
+		assertThat(Files.readString(tgtMemory.resolve("topics/build.md"))).isEqualTo("no path references here");
+		// ...and non-text content copied verbatim, never rewritten.
+		assertThat(Files.readAllBytes(tgtMemory.resolve("topics/blob.bin"))).isEqualTo(binary);
+	}
+
+	@Test
+	void archivesAndRestoresTheTaskList(@TempDir Path source, @TempDir Path config, @TempDir Path otherConfig,
+			@TempDir Path tmp) throws Exception {
+		// Tasks live under the config dir's tasks/ root (a sibling of projects/), keyed by
+		// session id — so these tests use a config-shaped layout rather than a bare projects dir.
+		Path projects = config.resolve("projects");
+		seedSession(source, projects);
+		String srcReal = source.toRealPath().toString();
+		Files.createDirectories(config.resolve("tasks/" + sid));
+		Files.writeString(config.resolve("tasks/" + sid + "/1.json"),
+				"{\"id\":\"1\",\"subject\":\"Fix " + srcReal + "/src/Foo.java\",\"status\":\"pending\"}");
+		Files.writeString(config.resolve("tasks/" + sid + "/.lock"), "");
+
+		Path archive = tmp.resolve("with-tasks.zip");
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).hasTasks()).isTrue();
+
+		// Keep-id restore into a different config: tasks land under its tasks root, re-homed —
+		// but never the CLI's .lock, which mirrors the live app's internal lock state.
+		Path target = tmp.resolve("restored");
+		SessionArchive.restore(archive.toString(), target.toString(), false,
+				otherConfig.resolve("projects").toString());
+		String tgtReal = target.toRealPath().toString();
+		assertThat(Files.readString(otherConfig.resolve("tasks/" + sid + "/1.json")))
+			.isEqualTo("{\"id\":\"1\",\"subject\":\"Fix " + tgtReal + "/src/Foo.java\",\"status\":\"pending\"}");
+		assertThat(otherConfig.resolve("tasks/" + sid + "/.lock")).doesNotExist();
+
+		// New-id restore: the task folder is re-keyed to the minted id, like the .meta sidecar.
+		Path forked = tmp.resolve("forked");
+		SessionArchive.RestoreResult r = SessionArchive.restore(archive.toString(), forked.toString(), true,
+				projects.toString());
+		assertThat(config.resolve("tasks/" + r.sessionId() + "/1.json")).exists();
+	}
+
+	@Test
+	void taskFolderWithOnlyALockFileIsNotCaptured(@TempDir Path source, @TempDir Path config, @TempDir Path tmp)
+			throws Exception {
+		Path projects = config.resolve("projects");
+		seedSession(source, projects);
+		Files.createDirectories(config.resolve("tasks/" + sid));
+		Files.writeString(config.resolve("tasks/" + sid + "/.lock"), "");
+
+		Path archive = tmp.resolve("lock-only.zip");
+		SessionArchive.create(sid, source.toString(), archive.toString(), projects.toString());
+		assertThat(SessionArchive.readManifest(archive.toString()).hasTasks()).isFalse();
+	}
+
+	@Test
 	void archiveWithoutMetaDataHasNoneToRead(@TempDir Path source, @TempDir Path projects, @TempDir Path tmp)
 			throws Exception {
 		seedSession(source, projects);
@@ -177,6 +256,8 @@ class SessionArchiveTest {
 
 		assertThat(SessionArchive.readManifest(archive.toString()).hasMetaData()).isFalse();
 		assertThat(SessionArchive.readMetaData(archive.toString())).isEmpty();
+		assertThat(SessionArchive.readManifest(archive.toString()).hasMemory()).isFalse();
+		assertThat(SessionArchive.readManifest(archive.toString()).hasTasks()).isFalse();
 
 		// Restoring an archive with no metadata creates no .meta file; the load yields an empty map.
 		Path target = tmp.resolve("restored");
