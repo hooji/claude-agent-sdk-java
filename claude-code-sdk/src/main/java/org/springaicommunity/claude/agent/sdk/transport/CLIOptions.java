@@ -611,6 +611,30 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		}
 
 		/**
+		 * Enables raw Anthropic Messages API request/response body logging to disk, via
+		 * the CLI's {@code OTEL_LOG_RAW_API_BODIES} environment variable in its
+		 * {@code file:} form.
+		 * <p>
+		 * {@code directory} names a <b>directory</b>, not a single file: the CLI writes
+		 * one {@code *.request.json} / {@code *.response.json} file pair per API call
+		 * into it (untruncated), and the emitted OTel log event carries a
+		 * {@code body_ref} pointing at those files instead of inlining the body. This
+		 * method takes the plain directory path and prepends the required
+		 * {@code file:} prefix for you.
+		 * <p>
+		 * This alone is not sufficient to produce output: it still requires telemetry
+		 * to be enabled and a logs exporter configured, e.g. via
+		 * {@code env("CLAUDE_CODE_ENABLE_TELEMETRY", "1")} and
+		 * {@code env("OTEL_LOGS_EXPORTER", "otlp")} (or {@code "console"}).
+		 * @param directory path to a directory the CLI will write raw API request/response
+		 * JSON files into (created by the CLI if it doesn't already exist)
+		 * @return this builder
+		 */
+		public Builder otelLogRawApiBodiesDirectory(String directory) {
+			return env("OTEL_LOG_RAW_API_BODIES", "file:" + directory);
+		}
+
+		/**
 		 * Sets the maximum buffer size for JSON parsing.
 		 * @param maxBufferSize maximum bytes (default 1MB)
 		 * @return this builder
