@@ -622,15 +622,19 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		 * method takes the plain directory path and prepends the required
 		 * {@code file:} prefix for you.
 		 * <p>
-		 * This alone is not sufficient to produce output: it still requires telemetry
-		 * to be enabled and a logs exporter configured, e.g. via
-		 * {@code env("CLAUDE_CODE_ENABLE_TELEMETRY", "1")} and
-		 * {@code env("OTEL_LOGS_EXPORTER", "otlp")} (or {@code "console"}).
+		 * Raw body logging only happens if telemetry is on and a logs exporter is
+		 * configured, so this also sets {@code CLAUDE_CODE_ENABLE_TELEMETRY=1} and
+		 * {@code OTEL_LOGS_EXPORTER=console} (which needs no collector or network
+		 * endpoint - the files are what you actually want, and this exporter setting
+		 * just needs to be valid, not point anywhere useful). Use {@code env(...)}
+		 * afterward to override either if you already export telemetry elsewhere.
 		 * @param directory path to a directory the CLI will write raw API request/response
 		 * JSON files into (created by the CLI if it doesn't already exist)
 		 * @return this builder
 		 */
 		public Builder otelLogRawApiBodiesDirectory(String directory) {
+			env("CLAUDE_CODE_ENABLE_TELEMETRY", "1");
+			env("OTEL_LOGS_EXPORTER", "console");
 			return env("OTEL_LOG_RAW_API_BODIES", "file:" + directory);
 		}
 

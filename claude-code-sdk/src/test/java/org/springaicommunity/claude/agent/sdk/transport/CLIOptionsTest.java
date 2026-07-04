@@ -35,17 +35,26 @@ class CLIOptionsTest {
 	}
 
 	@Test
-	@DisplayName("otelLogRawApiBodiesDirectory should compose with other env() calls")
-	void otelLogRawApiBodiesDirectoryComposesWithOtherEnvVars() {
+	@DisplayName("otelLogRawApiBodiesDirectory should also enable telemetry and a logs exporter so it actually works")
+	void otelLogRawApiBodiesDirectorySetsPrerequisiteEnvVars() {
+		CLIOptions options = CLIOptions.builder().otelLogRawApiBodiesDirectory("/var/log/claude-raw").build();
+
+		assertThat(options.getEnv()).containsEntry("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
+			.containsEntry("OTEL_LOGS_EXPORTER", "console")
+			.containsEntry("OTEL_LOG_RAW_API_BODIES", "file:/var/log/claude-raw");
+	}
+
+	@Test
+	@DisplayName("otelLogRawApiBodiesDirectory should let a later env() call override its defaults")
+	void otelLogRawApiBodiesDirectoryDefaultsAreOverridable() {
 		CLIOptions options = CLIOptions.builder()
-			.env("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
 			.otelLogRawApiBodiesDirectory("/tmp/raw-bodies")
-			.env("OTEL_LOGS_EXPORTER", "console")
+			.env("OTEL_LOGS_EXPORTER", "otlp")
 			.build();
 
 		assertThat(options.getEnv()).containsEntry("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
 			.containsEntry("OTEL_LOG_RAW_API_BODIES", "file:/tmp/raw-bodies")
-			.containsEntry("OTEL_LOGS_EXPORTER", "console");
+			.containsEntry("OTEL_LOGS_EXPORTER", "otlp");
 	}
 
 }
