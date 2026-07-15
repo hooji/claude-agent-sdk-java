@@ -48,6 +48,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
 | **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
 | **Cloud sessions monitor** (`claude-cloud-sessions` module) | Standalone module that lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers (macOS Keychain / Linux `~/.claude/.credentials.json`). | [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md) |
+| **CLI version management** (`ClaudeCliVersions`) | Read the installed CLI version (`claude --version`), discover the newest version on the `stable` / `latest` / `next` release channels (npm dist-tags), compare them with `checkForUpdate()`, and trigger `claude update` — with an honest `wasUpdated()` before/after signal instead of the CLI's unreliable exit code. | [CLI Version Management](#cli-version-management) |
 
 ## Requirements
 
@@ -396,6 +397,38 @@ ClaudeSyncClient client = ClaudeClient.sync(options)
     .workingDirectory(".")
     .build();
 ```
+
+---
+
+## CLI Version Management
+
+`ClaudeCliVersions` surfaces the version information the interactive CLI shows in its UI — the installed version *and* the latest available one — so an application can decide for itself whether to update:
+
+```java
+import org.springaicommunity.claude.agent.sdk.config.ClaudeCliVersions;
+import org.springaicommunity.claude.agent.sdk.config.ClaudeCliVersions.UpdateChannel;
+
+String installed = ClaudeCliVersions.getInstalledVersion();          // "2.1.210" (runs `claude --version`)
+String latest = ClaudeCliVersions.getLatestAvailableVersion();       // newest on the "latest" channel
+String stable = ClaudeCliVersions.getLatestAvailableVersion(UpdateChannel.STABLE);
+
+// Or both sides at once — the check-only mode the CLI itself doesn't have:
+var check = ClaudeCliVersions.checkForUpdate();
+if (check.isUpdateAvailable()) {
+    var result = ClaudeCliVersions.update();                         // runs `claude update`
+    if (result.wasUpdated()) {
+        System.out.println("Updated " + result.previousVersion() + " -> " + result.currentVersion());
+    } else {
+        System.out.println("Update did not complete:\n" + result.output());
+    }
+}
+```
+
+Notes:
+
+- **Latest-version source**: the npm registry [dist-tags](https://registry.npmjs.org/-/package/@anthropic-ai/claude-code/dist-tags) of `@anthropic-ai/claude-code` — the same `stable` / `latest` channel names that `claude install [target]` accepts and the CLI's `autoUpdatesChannel` setting selects. Override the registry with `-Dclaude.cli.registryUrl=...` (e.g. a corporate npm mirror).
+- **`update()` honesty**: `claude update` has been observed to exit 0 even when it fails, so `UpdateResult.wasUpdated()` compares the installed version before and after instead of trusting the exit code; `output()` carries the CLI's own diagnostics.
+- `compareVersions("2.1.10", "2.1.9")` is also exposed as a public semver-style comparator.
 
 ---
 
