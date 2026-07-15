@@ -68,17 +68,20 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- dependency versions -->
-        <zt-exec.version>1.12</zt-exec.version>
-        <jackson.version>2.17.2</jackson.version>
-        <reactor.version>3.6.10</reactor.version>
-        <slf4j.version>2.0.9</slf4j.version>
-        <mcp.version>0.15.0</mcp.version>
+        <zt-exec.version>1.13.0</zt-exec.version>
+        <jackson.version>2.22.1</jackson.version>
+        <!-- jackson-annotations stopped shipping patch releases; its 2.x line is
+             versioned as plain major.minor (2.22), so it needs its own property. -->
+        <jackson-annotations.version>2.22</jackson-annotations.version>
+        <reactor.version>3.8.6</reactor.version>
+        <slf4j.version>2.0.18</slf4j.version>
+        <mcp.version>2.0.0</mcp.version>
 
         <!-- test dependency versions -->
-        <junit.version>5.10.2</junit.version>
-        <mockito.version>5.11.0</mockito.version>
-        <assertj.version>3.25.3</assertj.version>
-        <logback.version>1.4.14</logback.version>
+        <junit.version>6.1.2</junit.version>
+        <mockito.version>5.23.0</mockito.version>
+        <assertj.version>3.27.7</assertj.version>
+        <logback.version>1.5.38</logback.version>
 
         <!-- plugin versions -->
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
@@ -98,6 +101,7 @@
 
     <modules>
         <module>claude-code-sdk</module>
+        <module>claude-cloud-sessions</module>
     </modules>
 
     <dependencyManagement>
@@ -123,7 +127,7 @@
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-annotations</artifactId>
-                <version>${jackson.version}</version>
+                <version>${jackson-annotations.version}</version>
             </dependency>
 
             <!-- Reactive streams -->
