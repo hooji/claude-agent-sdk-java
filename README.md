@@ -49,6 +49,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
 | **Cloud sessions monitor** (`claude-cloud-sessions` module) | Standalone module that lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers (macOS Keychain / Linux `~/.claude/.credentials.json`). | [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md) |
 | **CLI version management** (`ClaudeCliVersions`) | Read the installed CLI version (`claude --version`), discover the newest version on the `stable` / `latest` / `next` release channels (npm dist-tags), compare them with `checkForUpdate()`, and trigger `claude update` — with an honest `wasUpdated()` before/after signal instead of the CLI's unreliable exit code. | [CLI Version Management](#cli-version-management) |
+| **Local sessions listing** (`ClaudeLocalSessions`) | The local counterpart of the cloud-sessions module: lists the sessions the CLI itself knows about on this machine via `claude agents --json [--all]` — interactive terminals and background agents, live and completed — as a fully-typed `LocalSession` record with a flattened raw-value map that preserves future wire fields. | [Local CLI Sessions](#local-cli-sessions) |
 
 ## Requirements
 
@@ -366,6 +367,29 @@ SessionClone.Result clone = SessionClone.clone(sessionId,
 ```
 
 Full details — storage layout, fork recovery, replay semantics, cloning vs `--fork-session` — in [docs/session-history.md](docs/session-history.md).
+
+---
+
+## Local CLI Sessions
+
+`ClaudeLocalSessions` lists the sessions the Claude CLI itself knows about on this machine — the CLI's *agent view* (`claude agents --json`), covering interactive terminals and background agents. It is the local counterpart of the [cloud sessions monitor](claude-cloud-sessions/README.md):
+
+```java
+import org.springaicommunity.claude.agent.sdk.sessions.ClaudeLocalSessions;
+
+// Sessions with a live process (interactive + background)
+for (var s : ClaudeLocalSessions.listLocalSessions()) {
+    System.out.printf("%-11s %s in %s%n", s.kind(), s.sessionId(), s.cwd());
+}
+
+// The full agent view list, including exited/completed sessions (--all)
+var all = ClaudeLocalSessions.listLocalSessions(true);
+var finished = all.stream().filter(s -> s.isBackground() && s.isTerminal()).toList();
+```
+
+`LocalSession` types every field the CLI emits (as of 2.1.210): `id` (the short id `claude attach`/`logs`/`stop` take), `sessionId`, `name`, `cwd`, `kind`, `startedAt`, `state`, `status`, `pid` — and, like the cloud module's `CloudSession`, keeps the *entire* raw entry in `allValues()`, a flattened `path -> string` map (`"meta.nested.deep"`, `"tags.0"`), so fields added by future CLI versions are preserved. `parseSessions(json)` is public for parsing captured output without touching the CLI.
+
+Note the scope: this is the CLI supervisor's live/recent list, not the full on-disk history — for every transcript ever stored for a directory, use the `transcript` package (`TranscriptDirectory`).
 
 ---
 
