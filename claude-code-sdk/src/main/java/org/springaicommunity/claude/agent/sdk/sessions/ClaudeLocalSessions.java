@@ -38,7 +38,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Lists Claude Code <em>local</em> sessions — the sessions the CLI itself knows about on
  * this machine — via {@code claude agents --json}, the local counterpart of
- * {@code ClaudeCloudSessions} (the cloud-sessions module).
+ * {@link ClaudeCloudSessions}.
  *
  * <p>
  * The listing is the CLI's <em>agent view</em> ({@code claude agents}): every session
