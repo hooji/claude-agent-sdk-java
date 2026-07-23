@@ -1,5 +1,12 @@
 # claude-cloud-sessions
 
+> **Moved into the main SDK:** this class now ships as part of `claude-code-sdk`
+> (and the `claude-code-sdk-all` fat jar) as
+> `org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions`.
+> Use that copy; this standalone module is kept only until the integrated
+> release is confirmed, then it will be removed. Everything below still
+> applies — only the package name differs.
+
 A single-file library for listing **Claude Code cloud sessions**
 (the sessions shown by `claude --teleport` and at claude.ai/code) and reading
 their live status — including the `worker_status` idle signal the teleport
