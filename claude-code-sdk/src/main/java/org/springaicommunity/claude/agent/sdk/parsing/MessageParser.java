@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Parses JSON messages from Claude CLI output into typed Message objects. Handles the
@@ -36,6 +37,16 @@ import java.util.Map;
 public class MessageParser {
 
 	private static final Logger logger = LoggerFactory.getLogger(MessageParser.class);
+
+	/**
+	 * Bookkeeping line types the CLI writes into transcript {@code .jsonl} files (session
+	 * labels, queue/mode records, attachments, ...). They are not conversation messages —
+	 * the transcript loader deliberately keeps them as raw entries — so hitting one here is
+	 * expected and logged quietly, unlike a genuinely unknown type.
+	 */
+	private static final Set<String> TRANSCRIPT_BOOKKEEPING_TYPES = Set.of("summary", "attachment", "mode",
+			"queue-operation", "last-prompt", "relocated", "tag", "custom-title", "ai-title", "agent-name",
+			"agent-color", "agent-setting", "file-history-snapshot");
 
 	private final ObjectMapper objectMapper;
 
@@ -72,10 +83,16 @@ public class MessageParser {
 			case "result" -> parseResultMessage(node);
 			case "stream_event" -> parseStreamEvent(node);
 			default -> {
-				logger.error(
-						"Unrecognized message type '{}' — skipping. "
-								+ "This may indicate the Claude CLI has added a new message type. " + "Raw JSON: {}",
-						type, node);
+				if (TRANSCRIPT_BOOKKEEPING_TYPES.contains(type)) {
+					logger.debug("Transcript bookkeeping line '{}' — not a conversation message, skipping.", type);
+				}
+				else {
+					logger.error(
+							"Unrecognized message type '{}' — skipping. "
+									+ "This may indicate the Claude CLI has added a new message type. "
+									+ "Raw JSON: {}",
+							type, node);
+				}
 				yield null;
 			}
 		};

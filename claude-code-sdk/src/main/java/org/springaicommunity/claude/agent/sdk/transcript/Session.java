@@ -44,8 +44,7 @@ import reactor.core.publisher.Flux;
  * @param workingDirectory the directory this session ran in, recovered from the {@code cwd}
  * stamped on the transcript ({@code null} if none was recorded). Unlike the sanitized storage
  * folder name, this is the real path the user ran Claude in. It is populated even by a
- * {@linkplain TranscriptDirectory#load(String, boolean) lightweight} load (which reads only as far
- * as the first {@code cwd}).
+ * {@linkplain TranscriptDirectory#load(String, boolean) lightweight} load.
  * @param entries every line of the file, in order, retained losslessly
  * @param messages the uuid-bearing subset of {@code entries} (the lineage carrier the fork
  * partition indexes into)
@@ -58,19 +57,27 @@ import reactor.core.publisher.Flux;
  * change it, go through {@link #putMetaData} / {@link #removeMetaData} (which persist the change),
  * not by mutating the returned map directly. Because it is mutable, a {@code Session} must not be
  * used as a hash-map key or set element.
+ * @param labels the session's official Claude Code labels — {@linkplain #tag() tag} (the desktop
+ * app's "custom group"), {@linkplain #customTitle() custom title} and {@linkplain #aiTitle()
+ * generated title} — recovered from the transcript's label lines (see {@link SessionLabels}).
+ * Like {@code metaData}, this is a live holder: change it through {@link #setTag},
+ * {@link #clearTag} and {@link #setCustomTitle}, which persist the change to the transcript.
+ * Populated by both full and lightweight loads.
  */
 public record Session(String sessionId, String file, boolean agentSession, String agentId, String workingDirectory,
 		List<TranscriptEntry> entries, List<TranscriptEntry> messages, List<ForkSegment> segments,
-		List<ForkMarker> forkMarkers, Map<String, Serializable> metaData) {
+		List<ForkMarker> forkMarkers, Map<String, Serializable> metaData, SessionLabels labels) {
 
 	/**
 	 * Canonical constructor; normalizes a {@code null} {@code metaData} to a fresh empty
-	 * {@link LinkedHashMap}. The map is intentionally <em>not</em> defensively copied — it is the
-	 * live map that {@link #putMetaData}, {@link #removeMetaData} and {@link #writeMetaData} mutate
-	 * and persist.
+	 * {@link LinkedHashMap} and a {@code null} {@code labels} to an empty holder. Neither is
+	 * defensively copied — they are the live containers the mutators
+	 * ({@link #putMetaData}/{@link #removeMetaData}, {@link #setTag}/{@link #setCustomTitle})
+	 * mutate and persist.
 	 */
 	public Session {
 		metaData = metaData == null ? new LinkedHashMap<>() : metaData;
+		labels = labels == null ? new SessionLabels() : labels;
 	}
 
 	/** @return true if this session inherited history from a fork (more than one segment). */
@@ -193,6 +200,98 @@ public record Session(String sessionId, String file, boolean agentSession, Strin
 	public void removeMetaData(String key) throws IOException {
 		metaData.remove(key);
 		writeMetaData();
+	}
+
+	// ============================================================
+	// Official Claude Code labels (tag / titles) — see SessionLabels
+	// ============================================================
+
+	/**
+	 * The session's tag — the single free-form label Claude Code itself associates with a
+	 * session. This is the value behind the desktop app's <b>custom groups</b> (sidebar
+	 * "Group by → Custom groups") and the session grouping in the CLI's {@code /resume}
+	 * picker; the official Agent SDK reads and writes it as {@code tagSession}. Distinct
+	 * from the SDK-private {@link #metaData()} sidecar, which Claude Code never sees.
+	 * @return the tag (custom-group name), or {@code null} when the session has none
+	 */
+	public String tag() {
+		return labels.tag();
+	}
+
+	/**
+	 * The user-set session title (the CLI's {@code /rename}; {@code renameSession} in the
+	 * official Agent SDK).
+	 * @return the custom title, or {@code null} when none was set
+	 */
+	public String customTitle() {
+		return labels.customTitle();
+	}
+
+	/**
+	 * The session title the CLI generated automatically from the conversation. Read-only:
+	 * the CLI maintains it.
+	 * @return the generated title, or {@code null} when none was recorded
+	 */
+	public String aiTitle() {
+		return labels.aiTitle();
+	}
+
+	/**
+	 * The best available display title, the way Claude Code's own session pickers choose
+	 * one: the user-set {@link #customTitle()} when present, otherwise the generated
+	 * {@link #aiTitle()}.
+	 * @return the display title, or {@code null} when the session has neither
+	 */
+	public String displayTitle() {
+		return customTitle() != null ? customTitle() : aiTitle();
+	}
+
+	/**
+	 * Sets this session's {@linkplain #tag() tag} — its custom-group name in the Claude
+	 * Code desktop app — by appending a {@code {"type":"tag",...}} line to the transcript
+	 * (the CLI's own storage for tags; latest line wins) and updating the in-memory
+	 * {@link #labels()} in one step.
+	 * @param tag the tag; leading/trailing whitespace is trimmed, matching the CLI
+	 * @throws IllegalArgumentException if {@code tag} is {@code null} or blank (use
+	 * {@link #clearTag()} to remove a tag — the same "use null to clear" rule the official
+	 * SDK's {@code tagSession} enforces is split into two explicit methods here)
+	 * @throws IOException if the transcript is missing/empty or the append fails
+	 */
+	public void setTag(String tag) throws IOException {
+		if (tag == null || tag.trim().isEmpty()) {
+			throw new IllegalArgumentException("tag must be non-empty (use clearTag() to clear)");
+		}
+		String trimmed = tag.trim();
+		SessionLabels.appendTagLine(file, sessionId, trimmed);
+		labels.tagValue(trimmed);
+	}
+
+	/**
+	 * Clears this session's {@linkplain #tag() tag} by appending an empty tag line
+	 * ({@code "tag":""}) to the transcript, the CLI's representation of "no tag".
+	 * @throws IOException if the transcript is missing/empty or the append fails
+	 */
+	public void clearTag() throws IOException {
+		SessionLabels.appendTagLine(file, sessionId, null);
+		labels.tagValue(null);
+	}
+
+	/**
+	 * Sets this session's {@linkplain #customTitle() custom title} (a rename, like the
+	 * CLI's {@code /rename}) by appending a {@code {"type":"custom-title",...}} line to the
+	 * transcript and updating the in-memory {@link #labels()} in one step.
+	 * @param title the title; leading/trailing whitespace is trimmed, matching the CLI
+	 * @throws IllegalArgumentException if {@code title} is {@code null} or blank (the CLI
+	 * offers no way to un-rename a session)
+	 * @throws IOException if the transcript is missing/empty or the append fails
+	 */
+	public void setCustomTitle(String title) throws IOException {
+		if (title == null || title.trim().isEmpty()) {
+			throw new IllegalArgumentException("title must be non-empty");
+		}
+		String trimmed = title.trim();
+		SessionLabels.appendCustomTitleLine(file, sessionId, trimmed);
+		labels.customTitleValue(trimmed);
 	}
 
 	/**

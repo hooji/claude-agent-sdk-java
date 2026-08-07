@@ -221,15 +221,15 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	 * the (relatively expensive) transcript parse and fork analysis.
 	 *
 	 * <p>When {@code dontLoadTranscripts} is {@code true}, each {@link Session} is populated only
-	 * with its identity, working directory, and metadata — {@link Session#sessionId()},
+	 * with its identity, working directory, metadata and labels — {@link Session#sessionId()},
 	 * {@link Session#file()}, {@link Session#agentSession()}, {@link Session#agentId()},
-	 * {@link Session#workingDirectory()} and {@link Session#metaData()} — while {@code entries},
-	 * {@code messages}, {@code segments} and {@code forkMarkers} are left empty and no
-	 * {@link ConversationFamily} fork analysis is performed (so {@link #families()} is empty). The
-	 * working directory is still recovered, by reading only as far as the first transcript line
-	 * that carries a {@code cwd} rather than parsing the whole file. This is a fast scan for
-	 * building a session browser; load a chosen session fully (default {@code load}) before
-	 * replaying, archiving, or inspecting its history.
+	 * {@link Session#workingDirectory()}, {@link Session#metaData()} and {@link Session#labels()}
+	 * (tag and titles) — while {@code entries}, {@code messages}, {@code segments} and
+	 * {@code forkMarkers} are left empty and no {@link ConversationFamily} fork analysis is
+	 * performed (so {@link #families()} is empty). The working directory and labels are still
+	 * recovered by streaming the file once with a cheap substring pre-filter rather than parsing
+	 * every line. This is a fast scan for building a session browser; load a chosen session fully
+	 * (default {@code load}) before replaying, archiving, or inspecting its history.
 	 * @param directory the transcript folder to load
 	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only scan)
 	 */
@@ -248,8 +248,9 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 				String sessionId = stripExtension(f.getFileName().toString());
 				boolean agent = sessionId.startsWith("agent-");
 				String agentId = agent ? sessionId.substring("agent-".length()) : null;
-				lite.add(new Session(sessionId, f.toString(), agent, agentId, firstCwd(f.toString(), mapper), List.of(),
-						List.of(), List.of(), List.of(), readMetaData(f.toString())));
+				LiteScan scan = liteScan(f.toString(), mapper);
+				lite.add(new Session(sessionId, f.toString(), agent, agentId, scan.cwd(), List.of(),
+						List.of(), List.of(), List.of(), readMetaData(f.toString()), scan.labels()));
 			}
 			return new TranscriptDirectory(directory, List.copyOf(lite), List.of());
 		}
@@ -344,7 +345,7 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			}
 			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), firstCwd(r.entries()),
 					r.entries(), messagesBySession.get(r.sessionId()), segments, List.copyOf(markers),
-					readMetaData(r.file())));
+					readMetaData(r.file()), SessionLabels.fromEntries(r.entries())));
 		}
 
 		List<ConversationFamily> families = buildFamilies(sessions);
@@ -540,6 +541,12 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		Session s = node.session();
 		String indent = "  ".repeat(depth);
 		sb.append(indent).append("- `").append(shortId(s.sessionId())).append("`");
+		if (s.displayTitle() != null) {
+			sb.append(" \"").append(s.displayTitle()).append("\"");
+		}
+		if (s.tag() != null) {
+			sb.append(" [").append(s.tag()).append("]");
+		}
 		if (s.isFork()) {
 			sb.append(" — forked from `").append(shortId(s.parentSessionId())).append("` after message ")
 					.append(node.forkPointInParent());
@@ -585,30 +592,42 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		return null;
 	}
 
+	/** What the lightweight scan recovers per transcript without a full parse. */
+	private record LiteScan(String cwd, SessionLabels labels) {
+	}
+
 	/**
-	 * The {@code cwd} of the first line that records one, read straight from a transcript file
-	 * without parsing the whole thing — the lightweight-load path. Reads line by line and stops at
-	 * the first {@code cwd} (in practice the first line), so it is cheap; non-JSON lines are skipped.
+	 * The lightweight-load scan: recovers the working directory and the session's
+	 * {@linkplain SessionLabels labels} (tag / titles) straight from a transcript file without
+	 * parsing every line. The {@code cwd} comes from the first line that records one (in practice
+	 * the first line), after which lines are only JSON-parsed when a cheap substring pre-filter
+	 * says they might be label lines; labels are last-wins, so the whole file is streamed but
+	 * almost none of it is parsed.
 	 */
-	private static String firstCwd(String transcriptFile, ObjectMapper mapper) throws IOException {
+	private static LiteScan liteScan(String transcriptFile, ObjectMapper mapper) throws IOException {
+		String cwd = null;
+		SessionLabels labels = new SessionLabels();
 		try (BufferedReader reader = Files.newBufferedReader(Path.of(transcriptFile))) {
 			String line;
 			while ((line = reader.readLine()) != null) {
 				if (line.isBlank()) {
 					continue;
 				}
-				try {
-					String cwd = text(mapper.readTree(line), "cwd");
-					if (cwd != null && !cwd.isBlank()) {
-						return cwd;
+				if (cwd == null) {
+					try {
+						cwd = text(mapper.readTree(line), "cwd");
+						if (cwd != null && cwd.isBlank()) {
+							cwd = null;
+						}
+					}
+					catch (Exception ignored) {
+						// not JSON — skip
 					}
 				}
-				catch (Exception ignored) {
-					// not JSON — skip
-				}
+				labels.applyRawLine(line, mapper);
 			}
 		}
-		return null;
+		return new LiteScan(cwd, labels);
 	}
 
 	private static String shortId(String id) {

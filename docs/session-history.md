@@ -153,14 +153,64 @@ s.removeMetaData("title");
   then writing a *different* one will not carry your change.
 - Because `metaData` is a live mutable map, do not use a `Session` as a hash-map key or set element.
 
+## Official session labels: tag & titles (custom groups)
+
+Besides the SDK-private `.meta` sidecar above, Claude Code has its own, **official** per-session
+labels, which this SDK reads and writes through `Session`:
+
+| Accessor | Meaning | Written by |
+|----------|---------|-----------|
+| `session.tag()` | The session's single free-form tag — the **custom group** name in the Claude Code desktop app (sidebar "Group by → Custom groups") and the grouping key in the CLI's `/resume` picker | `session.setTag(..)` / `session.clearTag()`; desktop app; official TS Agent SDK `tagSession` |
+| `session.customTitle()` | User-set title (`/rename` in the CLI, rename in the picker/desktop app) | `session.setCustomTitle(..)`; CLI; TS SDK `renameSession` |
+| `session.aiTitle()` | Auto-generated title | the CLI (read-only here) |
+| `session.displayTitle()` | `customTitle`, falling back to `aiTitle` — what Claude's own pickers show | — |
+
+On disk these are **bookkeeping lines appended to the transcript itself** (not a separate store),
+one JSON object per write, latest occurrence wins; an empty value clears:
+
+```
+{"type":"tag","tag":"experiments","sessionId":"<id>"}
+{"type":"custom-title","customTitle":"Doc summarizer","sessionId":"<id>"}
+{"type":"ai-title","aiTitle":"Summarizing the docs","sessionId":"<id>"}
+```
+
+The SDK's setters append exactly the CLI's line shape (same validation too: values are trimmed,
+must be non-empty — `clearTag()` writes the empty-tag line — and the transcript must exist and be
+non-empty). Because labels live in the transcript, they survive `SessionClone`, `SessionArchive`
+and fork-copies automatically, and are picked up by both full and
+[lightweight](#lightweight-scanning-session-browser) loads:
+
+```java
+Session s = client.getSession();
+s.setTag("experiments");            // appears as custom group "experiments" in the desktop app
+s.setCustomTitle("Doc summarizer"); // appears as the session's name
+s.clearTag();                       // back to ungrouped
+```
+
+**Choosing between labels and `.meta`:** the tag/titles are visible to (and editable by) Claude
+Code's own UIs and limited to these fixed strings; the `.meta` sidecar is invisible to Claude Code
+and holds arbitrary Java objects. They complement each other — label a session for the humans in
+the desktop app, keep machine state in `.meta`.
+
+**Cloud sessions** (claude.ai/code — what the iPad app and the desktop app's cloud list show) have
+a separate, richer labeling model on the sessions API: a `tags` **list** per session, already
+exposed on `CloudSession.tags()` and now editable with
+`ClaudeCloudSessions.updateSessionTags(token, id, addTags, removeTags)` (plus
+`updateSessionTitle`). The apps layer conventions on top — a color label is just a tag
+`"color:<name>"` (`ClaudeCloudSessions.COLOR_TAG_PREFIX`) — and sessions can additionally be
+assigned to a server-side *Project* (`session_grouping_id`, create-time only, not exposed by this
+SDK).
+
 ## Lightweight scanning (session browser)
 
 To enumerate sessions cheaply — e.g. to render a picker — pass `dontLoadTranscripts = true` to any
 `load` / `forWorkingDirectory` / `allUnder` variant. Each `Session` is then populated with its
-identity, working directory, and metadata (`sessionId`, `file`, `agentSession`, `agentId`,
-`workingDirectory`, `metaData`); `entries`, `messages`, `segments`, and `forkMarkers` are left
-empty and no fork analysis runs (so `families()` is empty). This skips parsing every transcript
-line in the directory (only as far as the first `cwd` is read, for the working directory).
+identity, working directory, metadata and labels (`sessionId`, `file`, `agentSession`, `agentId`,
+`workingDirectory`, `metaData`, plus `tag`/`customTitle`/`aiTitle`); `entries`, `messages`,
+`segments`, and `forkMarkers` are left empty and no fork analysis runs (so `families()` is empty).
+This skips parsing the transcript lines: the file is streamed once, but lines are only JSON-parsed
+until the first `cwd` is found and thereafter only when a cheap substring pre-filter marks them as
+possible label lines.
 
 ```java
 for (TranscriptDirectory dir : TranscriptDirectory.allUnder(true)) {   // metadata-only scan

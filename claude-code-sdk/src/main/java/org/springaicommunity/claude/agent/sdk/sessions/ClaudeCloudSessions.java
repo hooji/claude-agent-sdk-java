@@ -55,6 +55,11 @@ import java.util.Set;
  * descending); pages are chained with a {@code ?cursor=<next_cursor>} query
  * parameter, mirroring the CLI's own pagination convention.
  *
+ * <p>Beyond listing, sessions can be relabeled the way the Claude apps do it:
+ * {@link #updateSessionTags} ({@code PUT} with {@code add_tags}/{@code remove_tags} —
+ * including the {@link #COLOR_TAG_PREFIX color:} convention behind the apps' color
+ * labels) and {@link #updateSessionTitle}.
+ *
  * <p>Authentication requires a <b>full-scope interactive login token</b> (scope
  * {@code user:sessions:claude_code}). Long-lived tokens minted by
  * {@code claude setup-token} / {@code CLAUDE_CODE_OAUTH_TOKEN} are inference-only
@@ -353,6 +358,107 @@ public final class ClaudeCloudSessions {
 	private static String baseUrl() {
 		String base = System.getProperty("claude.sessions.baseUrl", DEFAULT_BASE_URL);
 		return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
+	}
+
+	// ------------------------------------------------------------------
+	// Updating (tags / title)
+	// ------------------------------------------------------------------
+
+	/**
+	 * The tag-prefix convention the Claude apps use for a session's <em>color label</em>: the
+	 * label is stored as an ordinary tag {@code "color:<name>"} (e.g. {@code "color:blue"}), at
+	 * most one per session — setting a color removes any other {@code color:*} tag, and the
+	 * "default" (no color) state is simply the absence of any such tag. Mirrors the CLI's own
+	 * {@code SESSION_COLOR_TAG_PREFIX}.
+	 */
+	public static final String COLOR_TAG_PREFIX = "color:";
+
+	/**
+	 * Adds and/or removes tags on a cloud session, via
+	 * {@code PUT /v1/code/sessions/<id>} with an {@code add_tags} / {@code remove_tags}
+	 * body — the same incremental-update call the Claude desktop and mobile apps make when
+	 * you label a session. Tags are free-form strings; by convention some carry structured
+	 * prefixes (see {@link #COLOR_TAG_PREFIX}).
+	 *
+	 * <p>The current tags of a session are visible on {@link CloudSession#tags()}; this
+	 * method needs only the deltas.
+	 * @param token a full-scope interactive login token (see {@link #getClaudeOAuthToken()})
+	 * @param sessionId the session id ({@code cse_...})
+	 * @param addTags tags to add ({@code null} or empty for none)
+	 * @param removeTags tags to remove ({@code null} or empty for none; removing an absent
+	 * tag is a no-op server-side)
+	 * @throws IllegalArgumentException if both lists are empty (nothing to change)
+	 * @throws IOException if the request fails or the server rejects it
+	 */
+	public static void updateSessionTags(String token, String sessionId, List<String> addTags,
+			List<String> removeTags) throws IOException, InterruptedException {
+		putSession(token, sessionId, tagsUpdateBody(addTags, removeTags));
+	}
+
+	/**
+	 * Renames a cloud session, via {@code PUT /v1/code/sessions/<id>} with a
+	 * {@code {"title": ...}} body — the same call the Claude apps and the CLI's bridge make
+	 * when a session is retitled.
+	 * @param token a full-scope interactive login token (see {@link #getClaudeOAuthToken()})
+	 * @param sessionId the session id ({@code cse_...})
+	 * @param title the new title (non-blank)
+	 * @throws IOException if the request fails or the server rejects it
+	 */
+	public static void updateSessionTitle(String token, String sessionId, String title)
+			throws IOException, InterruptedException {
+		if (title == null || title.isBlank()) {
+			throw new IllegalArgumentException("title must be non-blank");
+		}
+		putSession(token, sessionId, MAPPER.createObjectNode().put("title", title.trim()).toString());
+	}
+
+	/**
+	 * Builds the {@code add_tags}/{@code remove_tags} update body. Package-private for tests;
+	 * mirrors the CLI, which omits whichever list is empty.
+	 */
+	static String tagsUpdateBody(List<String> addTags, List<String> removeTags) {
+		boolean hasAdds = addTags != null && !addTags.isEmpty();
+		boolean hasRemoves = removeTags != null && !removeTags.isEmpty();
+		if (!hasAdds && !hasRemoves) {
+			throw new IllegalArgumentException("nothing to change: both addTags and removeTags are empty");
+		}
+		var body = MAPPER.createObjectNode();
+		if (hasAdds) {
+			var arr = body.putArray("add_tags");
+			addTags.forEach(arr::add);
+		}
+		if (hasRemoves) {
+			var arr = body.putArray("remove_tags");
+			removeTags.forEach(arr::add);
+		}
+		return body.toString();
+	}
+
+	private static void putSession(String token, String sessionId, String body)
+			throws IOException, InterruptedException {
+		if (sessionId == null || sessionId.isBlank()) {
+			throw new IllegalArgumentException("sessionId must be non-blank");
+		}
+		String url = baseUrl() + SESSIONS_PATH + "/" + URLEncoder.encode(sessionId, StandardCharsets.UTF_8);
+		HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+				.timeout(Duration.ofSeconds(30))
+				.header("Authorization", "Bearer " + token)
+				.header("anthropic-version", ANTHROPIC_VERSION)
+				.header("Content-Type", "application/json")
+				.PUT(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+				.build();
+		HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+		if (response.statusCode() != 200) {
+			String hint = "";
+			if (response.statusCode() == 401 || response.statusCode() == 403) {
+				hint = " — cloud sessions require a full-scope interactive login token"
+						+ " (scope user:sessions:claude_code); long-lived `claude setup-token`"
+						+ " tokens are inference-only. If the token is from a login, it may"
+						+ " have expired: run any `claude` command to refresh it.";
+			}
+			throw new IOException("PUT " + url + " returned " + response.statusCode()
+					+ hint + " body: " + truncate(response.body(), 300));
+		}
 	}
 
 	// ------------------------------------------------------------------
