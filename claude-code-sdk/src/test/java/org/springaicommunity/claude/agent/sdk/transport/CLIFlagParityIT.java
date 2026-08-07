@@ -112,6 +112,13 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			// API instead of a CLIOptions toggle — tracked separately.
 			"bg", "background",
 
+			// Cloud-session launchers: --cloud creates/attaches a claude.ai/code cloud session,
+			// --environment targets a self-hosted cloud environment, --teleport resumes a cloud
+			// session locally. All three replace the local stdio session this transport manages
+			// with a cloud-backed workflow, so they are out of scope for CLIOptions; cloud
+			// sessions are covered by the separate ClaudeCloudSessions monitor instead.
+			"cloud", "environment", "teleport",
+
 			// Hardcoded to stream-json by StreamingTransport — not configurable
 			"output-format", "input-format");
 

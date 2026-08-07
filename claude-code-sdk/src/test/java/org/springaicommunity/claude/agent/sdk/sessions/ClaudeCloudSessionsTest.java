@@ -16,6 +16,8 @@
 
 package org.springaicommunity.claude.agent.sdk.sessions;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions.CloudSession;
 import org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions.Page;
 import org.junit.jupiter.api.Nested;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -251,6 +254,62 @@ class ClaudeCloudSessionsTest {
 		void rejectsMalformedJson() {
 			assertThatThrownBy(() -> ClaudeCloudSessions.parsePage("not json at all"))
 				.isInstanceOf(IOException.class);
+		}
+
+	}
+
+	/**
+	 * The update methods issue {@code PUT /v1/code/sessions/<id>}; these tests cover the
+	 * request-body construction and the validations that fire before any network I/O.
+	 */
+	@Nested
+	class Updating {
+
+		@Test
+		void tagsBodyWithAddsOnly() throws IOException {
+			JsonNode body = new ObjectMapper()
+				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("group-a", "color:blue"), null));
+			assertThat(body.path("add_tags").get(0).asText()).isEqualTo("group-a");
+			assertThat(body.path("add_tags").get(1).asText()).isEqualTo("color:blue");
+			assertThat(body.has("remove_tags")).isFalse(); // empty list omitted, like the CLI
+		}
+
+		@Test
+		void tagsBodyWithRemovesOnly() throws IOException {
+			JsonNode body = new ObjectMapper()
+				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of(), List.of("color:red")));
+			assertThat(body.has("add_tags")).isFalse();
+			assertThat(body.path("remove_tags").get(0).asText()).isEqualTo("color:red");
+		}
+
+		@Test
+		void tagsBodyWithBoth() throws IOException {
+			JsonNode body = new ObjectMapper()
+				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("a"), List.of("b")));
+			assertThat(body.path("add_tags").size()).isEqualTo(1);
+			assertThat(body.path("remove_tags").size()).isEqualTo(1);
+		}
+
+		@Test
+		void emptyUpdateIsRejected() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.updateSessionTags("tok", "cse_x", List.of(), null))
+				.isInstanceOf(IllegalArgumentException.class)
+				.hasMessageContaining("nothing to change");
+		}
+
+		@Test
+		void blankTitleAndSessionIdAreRejectedBeforeAnyIo() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.updateSessionTitle("tok", "cse_x", " "))
+				.isInstanceOf(IllegalArgumentException.class);
+			assertThatThrownBy(() -> ClaudeCloudSessions.updateSessionTitle("tok", "", "title"))
+				.isInstanceOf(IllegalArgumentException.class);
+			assertThatThrownBy(() -> ClaudeCloudSessions.updateSessionTags("tok", " ", List.of("a"), null))
+				.isInstanceOf(IllegalArgumentException.class);
+		}
+
+		@Test
+		void colorTagPrefixMatchesTheCli() {
+			assertThat(ClaudeCloudSessions.COLOR_TAG_PREFIX).isEqualTo("color:");
 		}
 
 	}
