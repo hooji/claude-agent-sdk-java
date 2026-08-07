@@ -33,7 +33,8 @@ import java.util.Map;
 public record CLIOptions(String model, String systemPrompt, Integer maxTokens, Integer maxThinkingTokens,
 		Duration timeout, List<String> tools, List<String> allowedTools, List<String> disallowedTools,
 		PermissionMode permissionMode, boolean interactive, List<String> settingSources,
-		String agents, boolean forkSession, boolean includePartialMessages, Map<String, Object> jsonSchema,
+		String agents, boolean forkSession, boolean includePartialMessages, boolean forwardSubagentText,
+		String autocompact, Map<String, Object> jsonSchema,
 		Map<String, McpServerConfig> mcpServers, Integer maxTurns, Double maxBudgetUsd, String fallbackModel,
 		String appendSystemPrompt,
 		// Session resume options
@@ -102,7 +103,7 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 	public static CLIOptions defaultOptions() {
 		return new CLIOptions(null, null, null, null, Duration.ofMinutes(2), null, List.of(), List.of(),
-				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, List.of(), null, false, false,
+				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, List.of(), null, false, false, false, null,
 				null, Map.of(), null, null, null, null, false, null, List.of(), null, null, Map.of(), List.of(),
 				Map.of(), null, null, null, null);
 	}
@@ -162,6 +163,14 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 	public boolean isIncludePartialMessages() {
 		return includePartialMessages;
+	}
+
+	public boolean isForwardSubagentText() {
+		return forwardSubagentText;
+	}
+
+	public String getAutocompact() {
+		return autocompact;
 	}
 
 	public Map<String, Object> getJsonSchema() {
@@ -271,6 +280,10 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		private boolean forkSession = false;
 
 		private boolean includePartialMessages = false;
+
+		private boolean forwardSubagentText = false;
+
+		private String autocompact;
 
 		private Map<String, Object> jsonSchema;
 
@@ -383,6 +396,29 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		public Builder includePartialMessages(boolean includePartialMessages) {
 			this.includePartialMessages = includePartialMessages;
+			return this;
+		}
+
+		/**
+		 * Forwards subagent text and thinking blocks as assistant/user messages with
+		 * {@code parent_tool_use_id} set (maps to {@code --forward-subagent-text}; the CLI
+		 * supports it only in the stream-json mode this transport always uses).
+		 * @param forwardSubagentText true to forward subagent output into the stream
+		 * @return this builder
+		 */
+		public Builder forwardSubagentText(boolean forwardSubagentText) {
+			this.forwardSubagentText = forwardSubagentText;
+			return this;
+		}
+
+		/**
+		 * Sets the auto-compact window size (maps to {@code --autocompact}).
+		 * @param autocompact {@code "auto"}, or a token count such as {@code "200000"}
+		 * (the CLI accepts 100k–1M)
+		 * @return this builder
+		 */
+		public Builder autocompact(String autocompact) {
+			this.autocompact = autocompact;
 			return this;
 		}
 
@@ -681,9 +717,10 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		public CLIOptions build() {
 			return new CLIOptions(model, systemPrompt, maxTokens, maxThinkingTokens, timeout, tools, allowedTools,
 					disallowedTools, permissionMode, interactive, settingSources, agents, forkSession,
-					includePartialMessages, jsonSchema, mcpServers, maxTurns, maxBudgetUsd, fallbackModel,
-					appendSystemPrompt, continueConversation, resume, addDirs, settings, permissionPromptToolName,
-					extraArgs, plugins, env, maxBufferSize, user, stderrHandler, toolPermissionCallback);
+					includePartialMessages, forwardSubagentText, autocompact, jsonSchema, mcpServers, maxTurns,
+					maxBudgetUsd, fallbackModel, appendSystemPrompt, continueConversation, resume, addDirs, settings,
+					permissionPromptToolName, extraArgs, plugins, env, maxBufferSize, user, stderrHandler,
+					toolPermissionCallback);
 		}
 
 	}

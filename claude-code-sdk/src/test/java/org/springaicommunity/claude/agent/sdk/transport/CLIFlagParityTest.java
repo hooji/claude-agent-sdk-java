@@ -585,6 +585,46 @@ class CLIFlagParityTest {
 		}
 
 		@Test
+		@DisplayName("--forward-subagent-text flag when enabled")
+		void forwardSubagentTextFlag() {
+			try (StreamingTransport transport = createTransport()) {
+				CLIOptions options = CLIOptions.builder().forwardSubagentText(true).build();
+				List<String> cmd = transport.buildStreamingCommand(options);
+				assertThat(cmd).contains("--forward-subagent-text");
+			}
+		}
+
+		@Test
+		@DisplayName("--forward-subagent-text flag not present when disabled")
+		void forwardSubagentTextFlagNotPresent() {
+			try (StreamingTransport transport = createTransport()) {
+				CLIOptions options = CLIOptions.builder().forwardSubagentText(false).build();
+				List<String> cmd = transport.buildStreamingCommand(options);
+				assertThat(cmd).doesNotContain("--forward-subagent-text");
+			}
+		}
+
+		@Test
+		@DisplayName("--autocompact flag with value")
+		void autocompactFlag() {
+			try (StreamingTransport transport = createTransport()) {
+				CLIOptions options = CLIOptions.builder().autocompact("200000").build();
+				List<String> cmd = transport.buildStreamingCommand(options);
+				assertThat(cmd).containsSubsequence("--autocompact", "200000");
+			}
+		}
+
+		@Test
+		@DisplayName("--autocompact flag not present when unset")
+		void autocompactFlagNotPresent() {
+			try (StreamingTransport transport = createTransport()) {
+				CLIOptions options = CLIOptions.builder().build();
+				List<String> cmd = transport.buildStreamingCommand(options);
+				assertThat(cmd).doesNotContain("--autocompact");
+			}
+		}
+
+		@Test
 		@DisplayName("--fork-session flag when enabled")
 		void forkSessionFlag() {
 			try (StreamingTransport transport = createTransport()) {

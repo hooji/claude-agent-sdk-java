@@ -486,6 +486,18 @@ public class StreamingTransport implements AutoCloseable {
 			command.add("--include-partial-messages");
 		}
 
+		// Forward subagent text/thinking into the stream (stream-json-only CLI flag,
+		// which is exactly the mode this transport runs in)
+		if (options.isForwardSubagentText()) {
+			command.add("--forward-subagent-text");
+		}
+
+		// Auto-compact window size ("auto" or a token count)
+		if (options.getAutocompact() != null && !options.getAutocompact().trim().isEmpty()) {
+			command.add("--autocompact");
+			command.add(options.getAutocompact());
+		}
+
 		// Add agents JSON for multi-agent coordination (Task tool with subagents)
 		if (options.getAgents() != null && !options.getAgents().trim().isEmpty()) {
 			command.add("--agents");
