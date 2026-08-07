@@ -396,6 +396,10 @@ Note the scope: this is the CLI supervisor's live/recent list, not the full on-d
 
 ## Configuration Options
 
+Every option — `CLIOptions`, the client-builder settings, and `QueryOptions` — is
+documented with explanations and CLI-flag mappings in **[docs/options.md](docs/options.md)**.
+A taste:
+
 ```java
 // Via ClaudeClient builder
 ClaudeSyncClient client = ClaudeClient.sync()
@@ -480,6 +484,7 @@ claude-agent-sdk-java/
 │       └── test/
 ├── fatjar/                   # claude-code-sdk-all uber jar (GitHub Releases)
 ├── docs/                     # Deep-dive documentation
+│   ├── options.md            # Every configuration option, explained
 │   ├── session-history.md    # Transcripts, fork recovery, replay, cloning
 │   ├── partial-streaming.md  # Token-level streaming
 │   └── releasing.md          # Release workflows and artifacts
