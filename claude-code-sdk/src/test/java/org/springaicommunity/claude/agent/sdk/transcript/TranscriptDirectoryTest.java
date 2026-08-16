@@ -29,8 +29,8 @@ import org.springaicommunity.claude.agent.sdk.types.Message;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Tests {@link TranscriptDirectory} against captured fork-lineage fixtures:
- * A (4b6f429e) -&gt; B (29efebea) -&gt; C (52d26748), with uuid sets A(6) ⊂ B(14) ⊂ C(23).
+ * Tests {@link TranscriptDirectory} against captured fork-lineage fixtures: A (4b6f429e)
+ * -&gt; B (29efebea) -&gt; C (52d26748), with uuid sets A(6) ⊂ B(14) ⊂ C(23).
  */
 class TranscriptDirectoryTest {
 
@@ -94,12 +94,14 @@ class TranscriptDirectoryTest {
 
 		ForkNode bNode = root.children().get(0);
 		assertThat(bNode.sessionId()).isEqualTo(B);
-		assertThat(bNode.forkPointInParent()).isEqualTo(6); // B forked from A after A's 6 messages
+		assertThat(bNode.forkPointInParent()).isEqualTo(6); // B forked from A after A's 6
+															// messages
 		assertThat(bNode.children()).hasSize(1);
 
 		ForkNode cNode = bNode.children().get(0);
 		assertThat(cNode.sessionId()).isEqualTo(C);
-		assertThat(cNode.forkPointInParent()).isEqualTo(14); // C forked from B after B's 14 messages
+		assertThat(cNode.forkPointInParent()).isEqualTo(14); // C forked from B after B's
+																// 14 messages
 		assertThat(cNode.children()).isEmpty();
 	}
 
@@ -121,9 +123,7 @@ class TranscriptDirectoryTest {
 		for (String name : List.of(A + ".jsonl", B + ".jsonl", C + ".jsonl")) {
 			List<JsonNode> original = jsonLines(m, src.resolve(name));
 			List<JsonNode> regenerated = jsonLines(m, tmp.resolve(name));
-			assertThat(regenerated)
-					.as("round-trip JSON equivalence for " + name)
-					.isEqualTo(original);
+			assertThat(regenerated).as("round-trip JSON equivalence for " + name).isEqualTo(original);
 		}
 	}
 
@@ -133,9 +133,9 @@ class TranscriptDirectoryTest {
 		List<Message> replay = d.replayMessages(C);
 
 		List<ForkMarker> markers = replay.stream()
-				.filter(ForkMarker.class::isInstance)
-				.map(ForkMarker.class::cast)
-				.toList();
+			.filter(ForkMarker.class::isInstance)
+			.map(ForkMarker.class::cast)
+			.toList();
 		assertThat(markers).hasSize(2);
 		assertThat(markers.get(0).parentSessionId()).isEqualTo(A);
 		assertThat(markers.get(0).childSessionId()).isEqualTo(B);
@@ -187,9 +187,10 @@ class TranscriptDirectoryTest {
 		// every line of the file is represented (none dropped)
 		assertThat(emittedEntries).isEqualTo(c.entries().size());
 
-		// non-conversation lines are now emitted (as RawTranscriptMessage) with their real type
-		assertThat(replay.stream().map(Message::getType).distinct())
-				.contains("user", "assistant", "attachment", "queue-operation", "mode", "last-prompt");
+		// non-conversation lines are now emitted (as RawTranscriptMessage) with their
+		// real type
+		assertThat(replay.stream().map(Message::getType).distinct()).contains("user", "assistant", "attachment",
+				"queue-operation", "mode", "last-prompt");
 	}
 
 	@Test
@@ -209,7 +210,8 @@ class TranscriptDirectoryTest {
 
 	@Test
 	void extractsReferencedFilePaths() throws Exception {
-		// Shapes observed in real transcripts: an edited_text_file attachment (filename) and
+		// Shapes observed in real transcripts: an edited_text_file attachment (filename)
+		// and
 		// a tool file operation (filePath).
 		ObjectMapper m = new ObjectMapper();
 		JsonNode raw = m.readTree("{\"type\":\"attachment\",\"attachment\":{\"type\":\"edited_text_file\","
@@ -218,8 +220,8 @@ class TranscriptDirectoryTest {
 				+ "\"note\":\"not a path\"}");
 		TranscriptEntry entry = new TranscriptEntry(1, null, null, "attachment", false, null, null, null, raw);
 
-		assertThat(entry.referencedFiles())
-				.containsExactlyInAnyOrder("/Users/nat/proj/Foo.java", "/Users/nat/proj/Bar.java");
+		assertThat(entry.referencedFiles()).containsExactlyInAnyOrder("/Users/nat/proj/Foo.java",
+				"/Users/nat/proj/Bar.java");
 
 		// RawTranscriptMessage (what replay emits) exposes the same convenience.
 		RawTranscriptMessage raw2 = new RawTranscriptMessage("attachment", null, raw);
@@ -227,17 +229,14 @@ class TranscriptDirectoryTest {
 	}
 
 	private static List<JsonNode> jsonLines(ObjectMapper m, Path file) throws Exception {
-		return Files.readAllLines(file).stream()
-				.filter(l -> !l.isBlank())
-				.map(l -> {
-					try {
-						return m.readTree(l);
-					}
-					catch (Exception e) {
-						throw new RuntimeException(e);
-					}
-				})
-				.toList();
+		return Files.readAllLines(file).stream().filter(l -> !l.isBlank()).map(l -> {
+			try {
+				return m.readTree(l);
+			}
+			catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		}).toList();
 	}
 
 	private static void assertTiling(Session s) {
@@ -248,4 +247,5 @@ class TranscriptDirectoryTest {
 		}
 		assertThat(expected).isEqualTo(s.messages().size());
 	}
+
 }

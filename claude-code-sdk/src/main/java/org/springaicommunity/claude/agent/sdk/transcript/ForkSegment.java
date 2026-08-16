@@ -20,7 +20,8 @@ package org.springaicommunity.claude.agent.sdk.transcript;
  * A contiguous run of a session's messages that were originally created in one session,
  * i.e. one cell of the fork partition.
  *
- * <p>A session's {@code segments} tile its uuid-bearing message list with no gaps or
+ * <p>
+ * A session's {@code segments} tile its uuid-bearing message list with no gaps or
  * overlaps: {@code segments[0].startIndex == 0}, and for each subsequent segment
  * {@code startIndex == previous.startIndex + previous.count}. The first segment is the
  * conversation root; the boundary at the start of every later segment is a fork point
@@ -28,12 +29,15 @@ package org.springaicommunity.claude.agent.sdk.transcript;
  *
  * @param originSessionId the session in which the messages of this segment were first
  * created (recovered via uuid provenance across the loaded directory)
- * @param startIndex index of this segment's first message within the session's message list
+ * @param startIndex index of this segment's first message within the session's message
+ * list
  * @param count number of messages in this segment
  */
 public record ForkSegment(String originSessionId, int startIndex, int count) {
 
-	/** @return the exclusive end index of this segment ({@code startIndex + count}). */
+	/**
+	 * @return the exclusive end index of this segment ({@code startIndex + count}).
+	 */
 	public int endIndexExclusive() {
 		return startIndex + count;
 	}

@@ -23,12 +23,13 @@ import java.util.Optional;
  * A partial streaming event emitted by the Claude CLI while a response is being
  * generated, enabling token-level streaming.
  *
- * <p>These events are only produced when the session is configured with
+ * <p>
+ * These events are only produced when the session is configured with
  * {@code includePartialMessages(true)} (CLI flag {@code --include-partial-messages}).
  * Each event wraps a raw Anthropic streaming event (for example
  * {@code content_block_delta}); the common case is an incremental text delta available
- * via {@link #textDelta()}. The full underlying event is available via {@link #rawEvent()}
- * for advanced consumers (block start/stop, message_delta, etc.).
+ * via {@link #textDelta()}. The full underlying event is available via
+ * {@link #rawEvent()} for advanced consumers (block start/stop, message_delta, etc.).
  *
  * @param eventType the inner Anthropic event type (e.g. {@code content_block_delta},
  * {@code message_start}, {@code message_stop}), or {@code null} if absent
@@ -37,8 +38,8 @@ import java.util.Optional;
  * otherwise {@code null}
  * @param rawEvent the full raw inner event as a map, for advanced use
  */
-public record StreamEvent(String eventType, String text, String thinking, Map<String, Object> rawEvent)
-		implements Message {
+public record StreamEvent(String eventType, String text, String thinking,
+		Map<String, Object> rawEvent) implements Message {
 
 	@Override
 	public String getType() {

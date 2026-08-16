@@ -209,8 +209,7 @@ class ClaudeCliVersionsTest {
 				}
 			});
 			server.start();
-			System.setProperty("claude.cli.registryUrl",
-					"http://127.0.0.1:" + server.getAddress().getPort() + "/");
+			System.setProperty("claude.cli.registryUrl", "http://127.0.0.1:" + server.getAddress().getPort() + "/");
 		}
 
 		@Test

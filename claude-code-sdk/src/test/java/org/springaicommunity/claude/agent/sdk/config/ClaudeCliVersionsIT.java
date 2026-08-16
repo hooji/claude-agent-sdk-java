@@ -79,8 +79,7 @@ class ClaudeCliVersionsIT extends ClaudeCliTestBase {
 		assertThat(check.installedVersion()).isEqualTo(ClaudeCliVersions.getInstalledVersion());
 		assertThat(check.latestVersion()).matches(SEMVER_PATTERN);
 		// Consistency: update is available iff the channel is strictly ahead
-		boolean latestIsAhead = ClaudeCliVersions.compareVersions(check.latestVersion(),
-				check.installedVersion()) > 0;
+		boolean latestIsAhead = ClaudeCliVersions.compareVersions(check.latestVersion(), check.installedVersion()) > 0;
 		assertThat(check.isUpdateAvailable()).isEqualTo(latestIsAhead);
 	}
 

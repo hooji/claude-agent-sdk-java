@@ -44,7 +44,9 @@ public enum BackgroundAgentState {
 	/** State string not recognized (forward-compatible default). */
 	UNKNOWN;
 
-	/** @return whether this is a terminal state (the agent will not progress further). */
+	/**
+	 * @return whether this is a terminal state (the agent will not progress further).
+	 */
 	public boolean isTerminal() {
 		return this == DONE || this == FAILED || this == STOPPED;
 	}

@@ -48,8 +48,8 @@ import org.springaicommunity.claude.agent.sdk.transcript.TranscriptDirectory;
  *
  * <p>
  * The returned objects are point-in-time snapshots read from disk on each call: a live
- * session's transcript grows as the conversation progresses, so re-invoke these methods to
- * observe new messages.
+ * session's transcript grows as the conversation progresses, so re-invoke these methods
+ * to observe new messages.
  * </p>
  */
 public interface TranscriptAware {
@@ -92,7 +92,8 @@ public interface TranscriptAware {
 	}
 
 	/**
-	 * Loads the transcript of one session associated with this client's working directory.
+	 * Loads the transcript of one session associated with this client's working
+	 * directory.
 	 * @param sessionId the session id
 	 * @return the session's transcript, or {@code null} if no such session exists
 	 * @throws ClaudeSDKException if the transcripts cannot be read
@@ -123,14 +124,14 @@ public interface TranscriptAware {
 	}
 
 	/**
-	 * Archives one session of this client's working directory to a single portable file (see
-	 * {@link SessionArchive}). The session's metadata travels with it (from its {@code <id>.meta}
-	 * sidecar).
+	 * Archives one session of this client's working directory to a single portable file
+	 * (see {@link SessionArchive}). The session's metadata travels with it (from its
+	 * {@code <id>.meta} sidecar).
 	 * @param sessionId the session to archive
 	 * @param targetArchive the archive file to write
 	 * @return the archive file written
-	 * @throws ClaudeSDKException if there is no such session, its files can't be read, or the
-	 * archive can't be written
+	 * @throws ClaudeSDKException if there is no such session, its files can't be read, or
+	 * the archive can't be written
 	 */
 	default String archiveSession(String sessionId, String targetArchive) {
 		Session session = getSession(sessionId);
@@ -147,11 +148,12 @@ public interface TranscriptAware {
 	}
 
 	/**
-	 * Archives this client's current session (see {@link #getSession()}) to a single portable
-	 * file.
+	 * Archives this client's current session (see {@link #getSession()}) to a single
+	 * portable file.
 	 * @param targetArchive the archive file to write
 	 * @return the archive file written
-	 * @throws ClaudeSDKException if there is no session yet, or the archive can't be written
+	 * @throws ClaudeSDKException if there is no session yet, or the archive can't be
+	 * written
 	 */
 	default String archiveSession(String targetArchive) {
 		Session session = getSession();

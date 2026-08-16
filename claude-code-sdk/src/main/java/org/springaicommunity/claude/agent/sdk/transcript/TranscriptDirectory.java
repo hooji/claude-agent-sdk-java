@@ -40,25 +40,30 @@ import org.springaicommunity.claude.agent.sdk.types.Message;
 import reactor.core.publisher.Flux;
 
 /**
- * Stage 1 of transcript discovery: loads <em>all</em> session transcripts under a directory
- * fully into memory, mirroring the on-disk structure and recovering the fork relationships.
+ * Stage 1 of transcript discovery: loads <em>all</em> session transcripts under a
+ * directory fully into memory, mirroring the on-disk structure and recovering the fork
+ * relationships.
  *
- * <p>After {@link #load(String)} returns, nothing further needs to be read from disk — all
- * higher-level functionality (Markdown rendering, replay, navigation, regeneration) is built
- * on this in-memory structure. Every line of every file is retained losslessly (see
- * {@link TranscriptEntry#raw()}), so {@link #regenerate(String)} can write the transcripts back
- * JSON-equivalently.
+ * <p>
+ * After {@link #load(String)} returns, nothing further needs to be read from disk — all
+ * higher-level functionality (Markdown rendering, replay, navigation, regeneration) is
+ * built on this in-memory structure. Every line of every file is retained losslessly (see
+ * {@link TranscriptEntry#raw()}), so {@link #regenerate(String)} can write the
+ * transcripts back JSON-equivalently.
  *
- * <p><b>Fork recovery.</b> Claude Code stores a {@code --fork-session} by copying the parent's
- * full history into the child file (keeping each message's original {@code uuid} but
- * re-stamping {@code sessionId}). So a session's uuid set is a superset of each ancestor's.
- * For each uuid-bearing message, its origin session is the loaded session with the smallest
- * uuid set that contains it; contiguous runs of the same origin form the {@link ForkSegment}
- * partition.
+ * <p>
+ * <b>Fork recovery.</b> Claude Code stores a {@code --fork-session} by copying the
+ * parent's full history into the child file (keeping each message's original {@code uuid}
+ * but re-stamping {@code sessionId}). So a session's uuid set is a superset of each
+ * ancestor's. For each uuid-bearing message, its origin session is the loaded session
+ * with the smallest uuid set that contains it; contiguous runs of the same origin form
+ * the {@link ForkSegment} partition.
  *
  * @param directory the loaded directory
- * @param sessions every session loaded (main sessions and {@code agent-*} sidechain sessions)
- * @param families independent conversations (grouped by shared root), each with its fork tree
+ * @param sessions every session loaded (main sessions and {@code agent-*} sidechain
+ * sessions)
+ * @param families independent conversations (grouped by shared root), each with its fork
+ * tree
  */
 public record TranscriptDirectory(String directory, List<Session> sessions, List<ConversationFamily> families) {
 
@@ -75,8 +80,8 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	}
 
 	/**
-	 * Variant of {@link #forWorkingDirectory(String)} that can skip parsing the transcripts (see
-	 * {@link #load(String, boolean)}), for a fast metadata-only scan.
+	 * Variant of {@link #forWorkingDirectory(String)} that can skip parsing the
+	 * transcripts (see {@link #load(String, boolean)}), for a fast metadata-only scan.
 	 */
 	public static TranscriptDirectory forWorkingDirectory(String workingDirectory, boolean dontLoadTranscripts)
 			throws IOException {
@@ -93,8 +98,9 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	}
 
 	/**
-	 * Variant of {@link #forWorkingDirectory(String)} with an explicit projects root that can skip
-	 * parsing the transcripts (see {@link #load(String, boolean)}), for a fast metadata-only scan.
+	 * Variant of {@link #forWorkingDirectory(String)} with an explicit projects root that
+	 * can skip parsing the transcripts (see {@link #load(String, boolean)}), for a fast
+	 * metadata-only scan.
 	 */
 	public static TranscriptDirectory forWorkingDirectory(String workingDirectory, String projectsRoot,
 			boolean dontLoadTranscripts) throws IOException {
@@ -109,10 +115,12 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	 * Loads the transcripts for <em>every</em> working directory recorded under {@code
 	 * projectsRoot} — i.e. every Claude Code session on this machine — returning one
 	 * {@link TranscriptDirectory} per working directory (folders with no transcripts are
-	 * skipped). The global counterpart to {@link #forWorkingDirectory(String)}, which scopes to a
-	 * single working directory.
-	 * @param projectsRoot the projects root holding the per-working-directory transcript folders
-	 * @return one loaded directory per non-empty working-directory folder, ordered by folder name
+	 * skipped). The global counterpart to {@link #forWorkingDirectory(String)}, which
+	 * scopes to a single working directory.
+	 * @param projectsRoot the projects root holding the per-working-directory transcript
+	 * folders
+	 * @return one loaded directory per non-empty working-directory folder, ordered by
+	 * folder name
 	 */
 	public static List<TranscriptDirectory> allUnder(String projectsRoot) throws IOException {
 		return allUnder(projectsRoot, false);
@@ -120,7 +128,8 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 
 	/**
 	 * Variant of {@link #allUnder(String)} that can skip parsing the transcripts (see
-	 * {@link #load(String, boolean)}), for a fast metadata-only scan of every working directory.
+	 * {@link #load(String, boolean)}), for a fast metadata-only scan of every working
+	 * directory.
 	 */
 	public static List<TranscriptDirectory> allUnder(String projectsRoot, boolean dontLoadTranscripts)
 			throws IOException {
@@ -148,8 +157,8 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	}
 
 	/**
-	 * {@link #allUnder(String, boolean)} using the default {@link #projectsRoot()}, for a fast
-	 * metadata-only scan of every working directory.
+	 * {@link #allUnder(String, boolean)} using the default {@link #projectsRoot()}, for a
+	 * fast metadata-only scan of every working directory.
 	 */
 	public static List<TranscriptDirectory> allUnder(boolean dontLoadTranscripts) throws IOException {
 		return allUnder(projectsRoot(), dontLoadTranscripts);
@@ -166,16 +175,16 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		if (configDir == null || configDir.isBlank()) {
 			configDir = System.getenv("CLAUDE_CONFIG_DIR");
 		}
-		Path base = configDir == null || configDir.isBlank()
-				? Path.of(System.getProperty("user.home"), ".claude") : Path.of(configDir);
+		Path base = configDir == null || configDir.isBlank() ? Path.of(System.getProperty("user.home"), ".claude")
+				: Path.of(configDir);
 		return base.resolve("projects").toString();
 	}
 
 	/**
 	 * Maps a session's working directory (the directory the user ran Claude in) to the
 	 * folder under the default projects root where Claude Code stores that directory's
-	 * transcripts. Symbolic links in the path are resolved first, because Claude Code keys
-	 * transcript storage by the <em>canonical</em> path (e.g. a session run in
+	 * transcripts. Symbolic links in the path are resolved first, because Claude Code
+	 * keys transcript storage by the <em>canonical</em> path (e.g. a session run in
 	 * {@code /Users/nat/shared/x} where {@code shared} links to
 	 * {@code /Volumes/My Shared Files/shared} is stored under
 	 * {@code -Volumes-My-Shared-Files-shared-x}).
@@ -211,34 +220,39 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		}
 	}
 
-	/** Loads and analyzes every {@code *.jsonl} transcript directly under {@code directory}. */
+	/**
+	 * Loads and analyzes every {@code *.jsonl} transcript directly under
+	 * {@code directory}.
+	 */
 	public static TranscriptDirectory load(String directory) throws IOException {
 		return load(directory, false);
 	}
 
 	/**
-	 * Loads every {@code *.jsonl} transcript directly under {@code directory}, optionally skipping
-	 * the (relatively expensive) transcript parse and fork analysis.
+	 * Loads every {@code *.jsonl} transcript directly under {@code directory}, optionally
+	 * skipping the (relatively expensive) transcript parse and fork analysis.
 	 *
-	 * <p>When {@code dontLoadTranscripts} is {@code true}, each {@link Session} is populated only
-	 * with its identity, working directory, metadata and labels — {@link Session#sessionId()},
-	 * {@link Session#file()}, {@link Session#agentSession()}, {@link Session#agentId()},
-	 * {@link Session#workingDirectory()}, {@link Session#metaData()} and {@link Session#labels()}
-	 * (tag and titles) — while {@code entries}, {@code messages}, {@code segments} and
-	 * {@code forkMarkers} are left empty and no {@link ConversationFamily} fork analysis is
-	 * performed (so {@link #families()} is empty). The working directory and labels are still
-	 * recovered by streaming the file once with a cheap substring pre-filter rather than parsing
-	 * every line. This is a fast scan for building a session browser; load a chosen session fully
-	 * (default {@code load}) before replaying, archiving, or inspecting its history.
+	 * <p>
+	 * When {@code dontLoadTranscripts} is {@code true}, each {@link Session} is populated
+	 * only with its identity, working directory, metadata and labels —
+	 * {@link Session#sessionId()}, {@link Session#file()},
+	 * {@link Session#agentSession()}, {@link Session#agentId()},
+	 * {@link Session#workingDirectory()}, {@link Session#metaData()} and
+	 * {@link Session#labels()} (tag and titles) — while {@code entries},
+	 * {@code messages}, {@code segments} and {@code forkMarkers} are left empty and no
+	 * {@link ConversationFamily} fork analysis is performed (so {@link #families()} is
+	 * empty). The working directory and labels are still recovered by streaming the file
+	 * once with a cheap substring pre-filter rather than parsing every line. This is a
+	 * fast scan for building a session browser; load a chosen session fully (default
+	 * {@code load}) before replaying, archiving, or inspecting its history.
 	 * @param directory the transcript folder to load
-	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only scan)
+	 * @param dontLoadTranscripts {@code true} to skip parsing transcripts (metadata-only
+	 * scan)
 	 */
 	public static TranscriptDirectory load(String directory, boolean dontLoadTranscripts) throws IOException {
 		List<Path> files;
 		try (Stream<Path> s = Files.list(Path.of(directory))) {
-			files = s.filter(p -> p.getFileName().toString().endsWith(".jsonl"))
-					.sorted()
-					.toList();
+			files = s.filter(p -> p.getFileName().toString().endsWith(".jsonl")).sorted().toList();
 		}
 
 		if (dontLoadTranscripts) {
@@ -249,8 +263,8 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 				boolean agent = sessionId.startsWith("agent-");
 				String agentId = agent ? sessionId.substring("agent-".length()) : null;
 				LiteScan scan = liteScan(f.toString(), mapper);
-				lite.add(new Session(sessionId, f.toString(), agent, agentId, scan.cwd(), List.of(),
-						List.of(), List.of(), List.of(), readMetaData(f.toString()), scan.labels()));
+				lite.add(new Session(sessionId, f.toString(), agent, agentId, scan.cwd(), List.of(), List.of(),
+						List.of(), List.of(), readMetaData(f.toString()), scan.labels()));
 			}
 			return new TranscriptDirectory(directory, List.copyOf(lite), List.of());
 		}
@@ -314,10 +328,12 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			}
 		}
 
-		// Per-session messages and segments first: fork markers need every session's parentage.
+		// Per-session messages and segments first: fork markers need every session's
+		// parentage.
 		Map<String, List<TranscriptEntry>> messagesBySession = new HashMap<>();
 		Map<String, List<ForkSegment>> segmentsBySession = new HashMap<>();
-		Map<String, String> parentOf = new HashMap<>(); // derived as in Session#parentSessionId
+		Map<String, String> parentOf = new HashMap<>(); // derived as in
+														// Session#parentSessionId
 		for (Raw r : raws) {
 			List<TranscriptEntry> messages = r.entries().stream().filter(TranscriptEntry::hasUuid).toList();
 			List<ForkSegment> segments = computeSegments(messages, uuidSessions, sessionUuids);
@@ -327,8 +343,10 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 					segments.size() < 2 ? null : segments.get(segments.size() - 2).originSessionId());
 		}
 
-		// Build Sessions with their fork partition and precomputed fork markers (the sibling
-		// lists require directory-wide knowledge, so a Session can replay itself afterwards).
+		// Build Sessions with their fork partition and precomputed fork markers (the
+		// sibling
+		// lists require directory-wide knowledge, so a Session can replay itself
+		// afterwards).
 		List<Session> sessions = new ArrayList<>();
 		for (Raw r : raws) {
 			List<ForkSegment> segments = segmentsBySession.get(r.sessionId());
@@ -336,11 +354,12 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			for (int i = 1; i < segments.size(); i++) {
 				String parent = segments.get(i - 1).originSessionId();
 				String child = segments.get(i).originSessionId();
-				List<String> siblings = parentOf.entrySet().stream()
-						.filter(e -> parent.equals(e.getValue()) && !e.getKey().equals(child))
-						.map(Map.Entry::getKey)
-						.sorted()
-						.toList();
+				List<String> siblings = parentOf.entrySet()
+					.stream()
+					.filter(e -> parent.equals(e.getValue()) && !e.getKey().equals(child))
+					.map(Map.Entry::getKey)
+					.sorted()
+					.toList();
 				markers.add(new ForkMarker(parent, child, segments.get(i).startIndex(), siblings));
 			}
 			sessions.add(new Session(r.sessionId(), r.file(), r.agentSession(), r.agentId(), firstCwd(r.entries()),
@@ -387,8 +406,8 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			Map<String, Set<String>> sessionUuids) {
 		List<String> candidates = uuidSessions.getOrDefault(uuid, List.of());
 		return candidates.stream()
-				.min(Comparator.<String>comparingInt(sid -> sessionUuids.get(sid).size()).thenComparing(sid -> sid))
-				.orElse(null);
+			.min(Comparator.<String>comparingInt(sid -> sessionUuids.get(sid).size()).thenComparing(sid -> sid))
+			.orElse(null);
 	}
 
 	/** Groups main sessions into families by shared root and builds each fork tree. */
@@ -405,10 +424,7 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			List<Session> members = e.getValue();
 			Map<String, Session> byId = new HashMap<>();
 			members.forEach(s -> byId.put(s.sessionId(), s));
-			Session root = members.stream()
-					.filter(s -> s.parentSessionId() == null)
-					.findFirst()
-					.orElse(members.get(0));
+			Session root = members.stream().filter(s -> s.parentSessionId() == null).findFirst().orElse(members.get(0));
 			ForkNode tree = buildNode(root, members);
 			families.add(new ConversationFamily(e.getKey(), tree, List.copyOf(members)));
 		}
@@ -418,32 +434,38 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 
 	private static ForkNode buildNode(Session s, List<Session> family) {
 		List<ForkNode> children = family.stream()
-				.filter(c -> s.sessionId().equals(c.parentSessionId()))
-				.sorted(Comparator.comparing(Session::sessionId))
-				.map(c -> buildNode(c, family))
-				.toList();
+			.filter(c -> s.sessionId().equals(c.parentSessionId()))
+			.sorted(Comparator.comparing(Session::sessionId))
+			.map(c -> buildNode(c, family))
+			.toList();
 		return new ForkNode(s, s.forkPointIndex(), children);
 	}
 
-	/** @return the session with the given id, if loaded. */
+	/**
+	 * @return the session with the given id, if loaded.
+	 */
 	public Optional<Session> byId(String sessionId) {
 		return sessions.stream().filter(s -> s.sessionId().equals(sessionId)).findFirst();
 	}
 
-	/** @return only the main (non sub-agent) sessions. */
+	/**
+	 * @return only the main (non sub-agent) sessions.
+	 */
 	public List<Session> mainSessions() {
 		return sessions.stream().filter(s -> !s.agentSession()).toList();
 	}
 
-	/** @return only the sub-agent sidechain sessions. */
+	/**
+	 * @return only the sub-agent sidechain sessions.
+	 */
 	public List<Session> agentSessions() {
 		return sessions.stream().filter(Session::agentSession).toList();
 	}
 
 	/**
-	 * The most recently modified main session — the same notion of "most recent" the CLI's
-	 * {@code --continue} resumes. Best-effort when several sessions run concurrently in
-	 * the same directory.
+	 * The most recently modified main session — the same notion of "most recent" the
+	 * CLI's {@code --continue} resumes. Best-effort when several sessions run
+	 * concurrently in the same directory.
 	 * @return the most recent main session, or {@code null} if none are loaded
 	 */
 	public Session mostRecentSession() {
@@ -481,11 +503,11 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 	}
 
 	/**
-	 * Writes every loaded session back to {@code destDir} under its original filename, using
-	 * each entry's retained raw JSON. Each session's {@code <id>.meta} sidecar is regenerated
-	 * alongside its transcript when the session carries metadata. The result is JSON-equivalent to
-	 * the source (not necessarily byte-identical), which is the basis of the round-trip fidelity
-	 * test.
+	 * Writes every loaded session back to {@code destDir} under its original filename,
+	 * using each entry's retained raw JSON. Each session's {@code <id>.meta} sidecar is
+	 * regenerated alongside its transcript when the session carries metadata. The result
+	 * is JSON-equivalent to the source (not necessarily byte-identical), which is the
+	 * basis of the round-trip fidelity test.
 	 */
 	public void regenerate(String destDir) throws IOException {
 		Path destDirPath = Path.of(destDir);
@@ -509,19 +531,29 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		}
 	}
 
-	/** Renders the directory structure as Markdown: independent conversations, then forks. */
+	/**
+	 * Renders the directory structure as Markdown: independent conversations, then forks.
+	 */
 	public String toMarkdown() {
 		StringBuilder sb = new StringBuilder();
 		sb.append("# Transcript directory\n\n");
 		sb.append("`").append(directory).append("`\n\n");
-		sb.append("- sessions: ").append(sessions.size()).append(" (main: ").append(mainSessions().size())
-				.append(", sub-agent: ").append(agentSessions().size()).append(")\n");
+		sb.append("- sessions: ")
+			.append(sessions.size())
+			.append(" (main: ")
+			.append(mainSessions().size())
+			.append(", sub-agent: ")
+			.append(agentSessions().size())
+			.append(")\n");
 		sb.append("- independent conversations: ").append(families.size()).append("\n\n");
 
 		int n = 1;
 		for (ConversationFamily fam : families) {
-			sb.append("## Conversation ").append(n++).append(" — root `").append(shortId(fam.rootSessionId()))
-					.append("`\n\n");
+			sb.append("## Conversation ")
+				.append(n++)
+				.append(" — root `")
+				.append(shortId(fam.rootSessionId()))
+				.append("`\n\n");
 			renderNode(fam.tree(), 0, sb);
 			sb.append("\n");
 		}
@@ -530,8 +562,13 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		if (!agents.isEmpty()) {
 			sb.append("## Sub-agent sessions\n\n");
 			for (Session a : agents) {
-				sb.append("- `").append(a.sessionId()).append("` (agentId ").append(shortId(a.agentId()))
-						.append(", ").append(a.messages().size()).append(" messages)\n");
+				sb.append("- `")
+					.append(a.sessionId())
+					.append("` (agentId ")
+					.append(shortId(a.agentId()))
+					.append(", ")
+					.append(a.messages().size())
+					.append(" messages)\n");
 			}
 		}
 		return sb.toString();
@@ -548,8 +585,10 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 			sb.append(" [").append(s.tag()).append("]");
 		}
 		if (s.isFork()) {
-			sb.append(" — forked from `").append(shortId(s.parentSessionId())).append("` after message ")
-					.append(node.forkPointInParent());
+			sb.append(" — forked from `")
+				.append(shortId(s.parentSessionId()))
+				.append("` after message ")
+				.append(node.forkPointInParent());
 		}
 		else {
 			sb.append(" — original");
@@ -557,9 +596,16 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		sb.append(" (").append(s.messages().size()).append(" messages)\n");
 		// segment breakdown
 		for (ForkSegment seg : s.segments()) {
-			sb.append(indent).append("  - segment from `").append(shortId(seg.originSessionId())).append("`: msgs [")
-					.append(seg.startIndex()).append("..").append(seg.endIndexExclusive() - 1).append("] (")
-					.append(seg.count()).append(")\n");
+			sb.append(indent)
+				.append("  - segment from `")
+				.append(shortId(seg.originSessionId()))
+				.append("`: msgs [")
+				.append(seg.startIndex())
+				.append("..")
+				.append(seg.endIndexExclusive() - 1)
+				.append("] (")
+				.append(seg.count())
+				.append(")\n");
 		}
 		for (ForkNode child : node.children()) {
 			renderNode(child, depth + 1, sb);
@@ -576,12 +622,17 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 		return dot < 0 ? name : name.substring(0, dot);
 	}
 
-	/** Reads the {@code <id>.meta} sidecar for a transcript file (empty map when absent). */
+	/**
+	 * Reads the {@code <id>.meta} sidecar for a transcript file (empty map when absent).
+	 */
 	private static Map<String, Serializable> readMetaData(String transcriptFile) throws IOException {
 		return SessionMetadata.readFromFile(SessionMetadata.fileFor(transcriptFile));
 	}
 
-	/** The {@code cwd} of the first transcript entry that records one, for a fully-parsed session. */
+	/**
+	 * The {@code cwd} of the first transcript entry that records one, for a fully-parsed
+	 * session.
+	 */
 	private static String firstCwd(List<TranscriptEntry> entries) {
 		for (TranscriptEntry e : entries) {
 			String cwd = text(e.raw(), "cwd");
@@ -598,11 +649,11 @@ public record TranscriptDirectory(String directory, List<Session> sessions, List
 
 	/**
 	 * The lightweight-load scan: recovers the working directory and the session's
-	 * {@linkplain SessionLabels labels} (tag / titles) straight from a transcript file without
-	 * parsing every line. The {@code cwd} comes from the first line that records one (in practice
-	 * the first line), after which lines are only JSON-parsed when a cheap substring pre-filter
-	 * says they might be label lines; labels are last-wins, so the whole file is streamed but
-	 * almost none of it is parsed.
+	 * {@linkplain SessionLabels labels} (tag / titles) straight from a transcript file
+	 * without parsing every line. The {@code cwd} comes from the first line that records
+	 * one (in practice the first line), after which lines are only JSON-parsed when a
+	 * cheap substring pre-filter says they might be label lines; labels are last-wins, so
+	 * the whole file is streamed but almost none of it is parsed.
 	 */
 	private static LiteScan liteScan(String transcriptFile, ObjectMapper mapper) throws IOException {
 		String cwd = null;

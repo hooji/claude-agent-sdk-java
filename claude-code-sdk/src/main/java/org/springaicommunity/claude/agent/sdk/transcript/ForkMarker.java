@@ -26,14 +26,15 @@ import org.springaicommunity.claude.agent.sdk.types.Message;
  * navigation to sibling branches. Its {@link #getType()} is {@code "fork_marker"}.
  *
  * @param parentSessionId the session the conversation was forked from
- * @param childSessionId the session created by the fork (whose messages follow this marker)
+ * @param childSessionId the session created by the fork (whose messages follow this
+ * marker)
  * @param messageIndex the fork position as an index into the session's message list — the
  * same coordinate as {@link ForkSegment#startIndex()} (a fork occurs <em>between</em>
- * {@code messageIndex - 1} and {@code messageIndex}). Note this is the partition index and
- * may differ from the marker's position in the emitted replay stream, since entries that are
- * not conversation messages are not emitted.
- * @param siblingSessionIds other sessions forked from {@code parentSessionId} (for "jump to
- * another branch" navigation), possibly empty
+ * {@code messageIndex - 1} and {@code messageIndex}). Note this is the partition index
+ * and may differ from the marker's position in the emitted replay stream, since entries
+ * that are not conversation messages are not emitted.
+ * @param siblingSessionIds other sessions forked from {@code parentSessionId} (for "jump
+ * to another branch" navigation), possibly empty
  */
 public record ForkMarker(String parentSessionId, String childSessionId, int messageIndex,
 		List<String> siblingSessionIds) implements Message {

@@ -31,10 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for {@link ClaudeCloudSessions#parsePage(String)} and
- * {@link CloudSession}. The fixture mirrors the shape of
- * {@code GET /v1/code/sessions} responses (the endpoint behind
- * {@code claude --teleport}).
+ * Unit tests for {@link ClaudeCloudSessions#parsePage(String)} and {@link CloudSession}.
+ * The fixture mirrors the shape of {@code GET /v1/code/sessions} responses (the endpoint
+ * behind {@code claude --teleport}).
  */
 class ClaudeCloudSessionsTest {
 
@@ -129,8 +128,7 @@ class ClaudeCloudSessionsTest {
 			assertThat(s.config().effortLevel()).isEqualTo("max");
 			assertThat(s.config().origin()).isEqualTo("desktop_app");
 			assertThat(s.config().sources()).hasSize(1);
-			assertThat(s.config().sources().get(0).url())
-				.isEqualTo("https://github.com/hooji/claude-agent-sdk-java");
+			assertThat(s.config().sources().get(0).url()).isEqualTo("https://github.com/hooji/claude-agent-sdk-java");
 			assertThat(s.config().outcomes()).hasSize(1);
 			assertThat(s.config().outcomes().get(0).gitInfo().repo()).isEqualTo("hooji/claude-agent-sdk-java");
 			assertThat(s.config().outcomes().get(0).gitInfo().branches()).containsExactly("claude/some-branch");
@@ -140,11 +138,9 @@ class ClaudeCloudSessionsTest {
 		void parsesExternalMetadata() throws IOException {
 			CloudSession s = parseOne(SESSION);
 			assertThat(s.externalMetadata().containerCcVersion()).isEqualTo("2.1.210");
-			assertThat(s.externalMetadata().currentBranches())
-				.containsEntry("/home/user/repo", "claude/some-branch");
+			assertThat(s.externalMetadata().currentBranches()).containsEntry("/home/user/repo", "claude/some-branch");
 			assertThat(s.externalMetadata().postTurnSummary().statusCategory()).isEqualTo("review_ready");
-			assertThat(s.externalMetadata().postTurnSummary().statusDetail())
-				.isEqualTo("PR opened, awaiting review");
+			assertThat(s.externalMetadata().postTurnSummary().statusDetail()).isEqualTo("PR opened, awaiting review");
 		}
 
 		@Test
@@ -166,8 +162,7 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void exposesCursorAndResumeToken() throws IOException {
-			Page page = ClaudeCloudSessions
-				.parsePage("{\"data\":[],\"next_cursor\":\"abc\",\"resume_token\":\"tok\"}");
+			Page page = ClaudeCloudSessions.parsePage("{\"data\":[],\"next_cursor\":\"abc\",\"resume_token\":\"tok\"}");
 			assertThat(page.sessions()).isEmpty();
 			assertThat(page.nextCursor()).isEqualTo("abc");
 			assertThat(page.resumeToken()).isEqualTo("tok");
@@ -216,8 +211,7 @@ class ClaudeCloudSessionsTest {
 					  "gone": null
 					}""";
 			CloudSession s = parseOne(withFutureFields);
-			assertThat(s.allValues())
-				.containsEntry("brand_new_field", "kept")
+			assertThat(s.allValues()).containsEntry("brand_new_field", "kept")
 				.containsEntry("nested.deep.value", "42")
 				.containsEntry("list.0", "x")
 				.containsEntry("list.1", "y")
@@ -229,8 +223,7 @@ class ClaudeCloudSessionsTest {
 		@Test
 		void allValuesMirrorsTypedFields() throws IOException {
 			CloudSession s = parseOne(SESSION);
-			assertThat(s.allValues())
-				.containsEntry("id", "cse_0123456789abcdef")
+			assertThat(s.allValues()).containsEntry("id", "cse_0123456789abcdef")
 				.containsEntry("worker_status", "idle")
 				.containsEntry("config.sources.0.url", "https://github.com/hooji/claude-agent-sdk-java")
 				.containsEntry("external_metadata.post_turn_summary.status_category", "review_ready")
@@ -241,8 +234,7 @@ class ClaudeCloudSessionsTest {
 		@Test
 		void allValuesIsUnmodifiable() throws IOException {
 			CloudSession s = parseOne(SESSION);
-			assertThatThrownBy(() -> s.allValues().put("x", "y"))
-				.isInstanceOf(UnsupportedOperationException.class);
+			assertThatThrownBy(() -> s.allValues().put("x", "y")).isInstanceOf(UnsupportedOperationException.class);
 		}
 
 	}
@@ -252,8 +244,7 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void rejectsMalformedJson() {
-			assertThatThrownBy(() -> ClaudeCloudSessions.parsePage("not json at all"))
-				.isInstanceOf(IOException.class);
+			assertThatThrownBy(() -> ClaudeCloudSessions.parsePage("not json at all")).isInstanceOf(IOException.class);
 		}
 
 	}
@@ -271,7 +262,8 @@ class ClaudeCloudSessionsTest {
 				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("group-a", "color:blue"), null));
 			assertThat(body.path("add_tags").get(0).asText()).isEqualTo("group-a");
 			assertThat(body.path("add_tags").get(1).asText()).isEqualTo("color:blue");
-			assertThat(body.has("remove_tags")).isFalse(); // empty list omitted, like the CLI
+			assertThat(body.has("remove_tags")).isFalse(); // empty list omitted, like the
+															// CLI
 		}
 
 		@Test
@@ -284,8 +276,7 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void tagsBodyWithBoth() throws IOException {
-			JsonNode body = new ObjectMapper()
-				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("a"), List.of("b")));
+			JsonNode body = new ObjectMapper().readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("a"), List.of("b")));
 			assertThat(body.path("add_tags").size()).isEqualTo(1);
 			assertThat(body.path("remove_tags").size()).isEqualTo(1);
 		}

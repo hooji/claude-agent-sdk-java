@@ -83,10 +83,10 @@ public abstract class ClaudeCliTestBase {
 	}
 
 	/**
-	 * Skips API-dependent tests when no Claude credentials are available (e.g. CI
-	 * runners without an {@code ANTHROPIC_API_KEY} secret). Runs after CLI discovery;
-	 * subclasses that exercise only the CLI binary (no model) override
-	 * {@link #requiresApi()} to keep running without credentials.
+	 * Skips API-dependent tests when no Claude credentials are available (e.g. CI runners
+	 * without an {@code ANTHROPIC_API_KEY} secret). Runs after CLI discovery; subclasses
+	 * that exercise only the CLI binary (no model) override {@link #requiresApi()} to
+	 * keep running without credentials.
 	 */
 	@BeforeAll
 	void checkApiRequirement() {
@@ -100,8 +100,8 @@ public abstract class ClaudeCliTestBase {
 
 	/**
 	 * Whether this test class needs a live Claude model behind the CLI. Defaults to
-	 * {@code true}; override to {@code false} for tests that only exercise the CLI
-	 * binary (e.g. flag parity via {@code claude --help}).
+	 * {@code true}; override to {@code false} for tests that only exercise the CLI binary
+	 * (e.g. flag parity via {@code claude --help}).
 	 */
 	protected boolean requiresApi() {
 		return true;
@@ -110,8 +110,8 @@ public abstract class ClaudeCliTestBase {
 	/**
 	 * Best-effort detection of usable Claude credentials: an API key or OAuth token in
 	 * the environment, a CLI login on this machine, or the explicit
-	 * {@code CLAUDE_SDK_LIVE_TESTS=true} opt-in (for environments with host-managed
-	 * auth that is invisible to this process).
+	 * {@code CLAUDE_SDK_LIVE_TESTS=true} opt-in (for environments with host-managed auth
+	 * that is invisible to this process).
 	 */
 	protected static boolean apiCredentialsAvailable() {
 		if ("true".equalsIgnoreCase(System.getenv("CLAUDE_SDK_LIVE_TESTS"))) {

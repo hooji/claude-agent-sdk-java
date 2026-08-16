@@ -42,14 +42,17 @@ import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
  * Dispatches and manages Claude Code <em>background agents</em> — sessions started with
  * {@code claude --bg} that run detached and are monitored via {@code claude agents}.
  *
- * <p>Unlike the streaming {@code ClaudeSyncClient}/{@code ClaudeAsyncClient} (which attach to a
- * live session and read its output as it streams), a background agent follows a
- * <b>dispatch &rarr; poll &rarr; retrieve</b> model: {@link #dispatch(String) dispatch} returns
- * immediately with a {@link BackgroundAgent} handle, you {@link BackgroundAgent#awaitTerminal
- * poll} its {@link BackgroundAgentState state}, and you {@link BackgroundAgent#transcript
- * retrieve} the result from the on-disk transcript via the SDK's transcript toolkit.
+ * <p>
+ * Unlike the streaming {@code ClaudeSyncClient}/{@code ClaudeAsyncClient} (which attach
+ * to a live session and read its output as it streams), a background agent follows a
+ * <b>dispatch &rarr; poll &rarr; retrieve</b> model: {@link #dispatch(String) dispatch}
+ * returns immediately with a {@link BackgroundAgent} handle, you
+ * {@link BackgroundAgent#awaitTerminal poll} its {@link BackgroundAgentState state}, and
+ * you {@link BackgroundAgent#transcript retrieve} the result from the on-disk transcript
+ * via the SDK's transcript toolkit.
  *
- * <p>All operations shell out to the {@code claude} CLI (located via
+ * <p>
+ * All operations shell out to the {@code claude} CLI (located via
  * {@link ClaudeCliDiscovery}) and are point-in-time — re-query for fresh state.
  */
 public final class BackgroundAgents {
@@ -66,7 +69,9 @@ public final class BackgroundAgents {
 	private BackgroundAgents() {
 	}
 
-	/** Dispatches a background agent in the JVM's current directory with default options. */
+	/**
+	 * Dispatches a background agent in the JVM's current directory with default options.
+	 */
 	public static BackgroundAgent dispatch(String prompt) throws IOException {
 		return dispatch(prompt, null, null);
 	}
@@ -77,13 +82,14 @@ public final class BackgroundAgents {
 	}
 
 	/**
-	 * Dispatches a background agent: runs {@code claude --bg <config flags> "<prompt>"}, which
-	 * returns immediately, then resolves the new session via {@code claude agents --json}.
+	 * Dispatches a background agent: runs {@code claude --bg <config flags> "<prompt>"},
+	 * which returns immediately, then resolves the new session via
+	 * {@code claude agents --json}.
 	 * @param prompt the task for the agent (must not be blank)
 	 * @param workingDirectory the directory to run in (JVM current dir when {@code null})
-	 * @param options config forwarded as flags (model, system prompt, tool allow/deny lists,
-	 * permission mode, add-dirs, budget, agents, settings, extra args); {@code null} for defaults.
-	 * Streaming-only options are ignored.
+	 * @param options config forwarded as flags (model, system prompt, tool allow/deny
+	 * lists, permission mode, add-dirs, budget, agents, settings, extra args);
+	 * {@code null} for defaults. Streaming-only options are ignored.
 	 * @return a handle to the dispatched agent
 	 * @throws IOException if the CLI fails or the new agent can't be resolved
 	 */
@@ -97,7 +103,8 @@ public final class BackgroundAgents {
 			throw new IllegalArgumentException("workingDirectory is not a directory: " + cwd);
 		}
 		String realCwd = cwd.toRealPath().toString();
-		CommandResult r = run(buildDispatchCommand(claudeBinary(), prompt, options), realCwd, options, DISPATCH_TIMEOUT);
+		CommandResult r = run(buildDispatchCommand(claudeBinary(), prompt, options), realCwd, options,
+				DISPATCH_TIMEOUT);
 		if (r.exitCode() != 0) {
 			throw new IOException("`claude --bg` failed (exit " + r.exitCode() + "): " + errorDetail(r));
 		}
@@ -111,7 +118,9 @@ public final class BackgroundAgents {
 				resolved.cwd() != null ? resolved.cwd() : realCwd);
 	}
 
-	/** @return the currently-active background agents (excludes completed ones). */
+	/**
+	 * @return the currently-active background agents (excludes completed ones).
+	 */
 	public static List<BackgroundAgent> list() throws IOException {
 		return list(false);
 	}
@@ -135,7 +144,8 @@ public final class BackgroundAgents {
 		return status(id).map(s -> new BackgroundAgent(s.id() != null ? s.id() : id, s.sessionId(), s.cwd()));
 	}
 
-	// --- package-private CLI operations (used by BackgroundAgent) -------------------------
+	// --- package-private CLI operations (used by BackgroundAgent)
+	// -------------------------
 
 	/** Runs {@code claude agents --json [--all]} and parses every entry (all kinds). */
 	static List<BackgroundAgentStatus> statuses(boolean includeCompleted) throws IOException {
@@ -163,7 +173,9 @@ public final class BackgroundAgents {
 		return out;
 	}
 
-	/** @return the snapshot for the agent identified by short id or full session id. */
+	/**
+	 * @return the snapshot for the agent identified by short id or full session id.
+	 */
 	static Optional<BackgroundAgentStatus> status(String id) throws IOException {
 		return statuses(true).stream().filter(s -> matchesId(s, id)).findFirst();
 	}
@@ -185,9 +197,13 @@ public final class BackgroundAgents {
 		}
 	}
 
-	// --- internals -----------------------------------------------------------------------
+	// --- internals
+	// -----------------------------------------------------------------------
 
-	/** Builds {@code claude --bg <flags> "<prompt>"}, forwarding the config-bearing options. */
+	/**
+	 * Builds {@code claude --bg <flags> "<prompt>"}, forwarding the config-bearing
+	 * options.
+	 */
 	static List<String> buildDispatchCommand(String binary, String prompt, CLIOptions o) {
 		List<String> c = new ArrayList<>();
 		c.add(binary);

@@ -29,12 +29,14 @@ import org.springaicommunity.claude.agent.sdk.transcript.TranscriptEntry;
 
 /**
  * A handle to a dispatched (or discovered) Claude Code background agent. Obtain one from
- * {@link BackgroundAgents#dispatch(String) dispatch}, {@link BackgroundAgents#list() list}, or
- * {@link BackgroundAgents#get(String) get}.
+ * {@link BackgroundAgents#dispatch(String) dispatch}, {@link BackgroundAgents#list()
+ * list}, or {@link BackgroundAgents#get(String) get}.
  *
- * <p>The handle's identity ({@link #id()}, {@link #sessionId()}, {@link #workingDirectory()}) is
- * fixed; its {@linkplain #status() status} and {@linkplain #result() result} are read live from
- * the supervisor and the on-disk transcript respectively.
+ * <p>
+ * The handle's identity ({@link #id()}, {@link #sessionId()},
+ * {@link #workingDirectory()}) is fixed; its {@linkplain #status() status} and
+ * {@linkplain #result() result} are read live from the supervisor and the on-disk
+ * transcript respectively.
  */
 public final class BackgroundAgent {
 
@@ -50,27 +52,37 @@ public final class BackgroundAgent {
 		this.workingDirectory = workingDirectory;
 	}
 
-	/** @return the short id (used by {@code claude logs}/{@code stop}). */
+	/**
+	 * @return the short id (used by {@code claude logs}/{@code stop}).
+	 */
 	public String id() {
 		return id;
 	}
 
-	/** @return the full session id (the transcript filename), or {@code null} if unknown. */
+	/**
+	 * @return the full session id (the transcript filename), or {@code null} if unknown.
+	 */
 	public String sessionId() {
 		return sessionId;
 	}
 
-	/** @return the working directory the agent runs in. */
+	/**
+	 * @return the working directory the agent runs in.
+	 */
 	public String workingDirectory() {
 		return workingDirectory;
 	}
 
-	/** @return the agent's current supervisor snapshot, or empty if it is no longer known. */
+	/**
+	 * @return the agent's current supervisor snapshot, or empty if it is no longer known.
+	 */
 	public Optional<BackgroundAgentStatus> status() throws IOException {
 		return BackgroundAgents.status(cliId());
 	}
 
-	/** @return the agent's current {@link BackgroundAgentState} (UNKNOWN if it is gone). */
+	/**
+	 * @return the agent's current {@link BackgroundAgentState} (UNKNOWN if it is gone).
+	 */
 	public BackgroundAgentState state() throws IOException {
 		return status().map(BackgroundAgentStatus::state).orElse(BackgroundAgentState.UNKNOWN);
 	}
@@ -82,8 +94,8 @@ public final class BackgroundAgent {
 	}
 
 	/**
-	 * Polls until the agent reaches a {@linkplain BackgroundAgentState#isTerminal() terminal}
-	 * state or {@code timeout} elapses.
+	 * Polls until the agent reaches a {@linkplain BackgroundAgentState#isTerminal()
+	 * terminal} state or {@code timeout} elapses.
 	 * @param timeout the maximum time to wait
 	 * @param pollInterval how long to sleep between {@code claude agents --json} polls
 	 * @return the terminal snapshot
@@ -107,8 +119,8 @@ public final class BackgroundAgent {
 	}
 
 	/**
-	 * @return the agent's recent terminal output via {@code claude logs} (raw, ANSI-laden).
-	 * Prefer {@link #transcript()}/{@link #result()} for structured access.
+	 * @return the agent's recent terminal output via {@code claude logs} (raw,
+	 * ANSI-laden). Prefer {@link #transcript()}/{@link #result()} for structured access.
 	 */
 	public String logs() throws IOException {
 		return BackgroundAgents.logs(cliId());
@@ -120,8 +132,8 @@ public final class BackgroundAgent {
 	}
 
 	/**
-	 * Loads the agent's conversation transcript from disk via the SDK's transcript toolkit
-	 * (so it composes with replay and {@link SessionArchive}).
+	 * Loads the agent's conversation transcript from disk via the SDK's transcript
+	 * toolkit (so it composes with replay and {@link SessionArchive}).
 	 * @return the {@link Session}, or empty if it has not been written yet
 	 */
 	public Optional<Session> transcript() throws IOException {
@@ -140,9 +152,10 @@ public final class BackgroundAgent {
 	}
 
 	/**
-	 * Archives this agent's session (transcript, its {@code .meta} metadata, and its entire
-	 * working directory tree) to a single portable file (see {@link SessionArchive}). The metadata
-	 * is picked up from the session's {@code <id>.meta} sidecar, if any.
+	 * Archives this agent's session (transcript, its {@code .meta} metadata, and its
+	 * entire working directory tree) to a single portable file (see
+	 * {@link SessionArchive}). The metadata is picked up from the session's
+	 * {@code <id>.meta} sidecar, if any.
 	 * @param targetArchive the archive file to write
 	 * @return the archive file written
 	 * @throws IllegalStateException if the agent's session id is not known

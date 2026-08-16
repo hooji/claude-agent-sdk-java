@@ -39,28 +39,28 @@ import com.fasterxml.jackson.databind.node.TextNode;
 
 /**
  * Shared low-level helpers for duplicating a Claude Code working tree and re-homing a
- * transcript (rewriting absolute path references from one working directory to another and
- * re-stamping the {@code sessionId}). Used by both {@link SessionClone} (fork to a new
- * directory under a fresh id) and {@link SessionArchive} (restore an archived session into a
- * new directory, keeping or replacing the id) so the two cannot drift apart.
+ * transcript (rewriting absolute path references from one working directory to another
+ * and re-stamping the {@code sessionId}). Used by both {@link SessionClone} (fork to a
+ * new directory under a fresh id) and {@link SessionArchive} (restore an archived session
+ * into a new directory, keeping or replacing the id) so the two cannot drift apart.
  */
 final class Transcripts {
 
 	/**
-	 * The name of the AI's persistent-memory folder that Claude Code keeps <em>next to the
-	 * transcripts</em> in a working directory's projects folder (i.e.
-	 * {@code <projectsRoot>/<sanitized-workdir>/memory/}) — the files the memory tool writes
-	 * ({@code MEMORY.md} and its topic files). Shared by every session that runs in that working
-	 * directory.
+	 * The name of the AI's persistent-memory folder that Claude Code keeps <em>next to
+	 * the transcripts</em> in a working directory's projects folder (i.e.
+	 * {@code <projectsRoot>/<sanitized-workdir>/memory/}) — the files the memory tool
+	 * writes ({@code MEMORY.md} and its topic files). Shared by every session that runs
+	 * in that working directory.
 	 */
 	static final String MEMORY_DIR = "memory";
 
 	/**
 	 * The name of the folder holding per-session task lists (the TODO tool's records), a
-	 * <em>sibling of the projects root</em> under the Claude config dir: each session's tasks
-	 * live in {@code <configDir>/tasks/<sessionId>/} as one JSON file per task (plus a
-	 * {@code .lock}). Unlike {@link #MEMORY_DIR}, which is per working directory, this is keyed
-	 * by session id.
+	 * <em>sibling of the projects root</em> under the Claude config dir: each session's
+	 * tasks live in {@code <configDir>/tasks/<sessionId>/} as one JSON file per task
+	 * (plus a {@code .lock}). Unlike {@link #MEMORY_DIR}, which is per working directory,
+	 * this is keyed by session id.
 	 */
 	static final String TASKS_DIR = "tasks";
 
@@ -70,11 +70,12 @@ final class Transcripts {
 	}
 
 	/**
-	 * The task-list folder for {@code sessionId}, derived from {@code projectsRoot} (the tasks
-	 * root is the projects root's sibling {@code tasks/} folder — verified against the CLI:
-	 * {@code <configDir>/projects/...} and {@code <configDir>/tasks/<sessionId>/}).
-	 * @return the folder (which may not exist), or {@code null} if {@code projectsRoot} has no
-	 * parent to hang the tasks root off
+	 * The task-list folder for {@code sessionId}, derived from {@code projectsRoot} (the
+	 * tasks root is the projects root's sibling {@code tasks/} folder — verified against
+	 * the CLI: {@code <configDir>/projects/...} and
+	 * {@code <configDir>/tasks/<sessionId>/}).
+	 * @return the folder (which may not exist), or {@code null} if {@code projectsRoot}
+	 * has no parent to hang the tasks root off
 	 */
 	static Path tasksDirFor(String projectsRoot, String sessionId) {
 		Path parent = Path.of(projectsRoot).toAbsolutePath().normalize().getParent();
@@ -82,17 +83,20 @@ final class Transcripts {
 	}
 
 	/**
-	 * Whether {@code p} is the CLI's {@code .lock} file (kept in a session's tasks folder).
-	 * It mirrors the live app's internal locking state, so it is never carried into an archive,
-	 * clone, or restore — a new session must start with its own lock state, or it might refuse
-	 * to update the task list.
+	 * Whether {@code p} is the CLI's {@code .lock} file (kept in a session's tasks
+	 * folder). It mirrors the live app's internal locking state, so it is never carried
+	 * into an archive, clone, or restore — a new session must start with its own lock
+	 * state, or it might refuse to update the task list.
 	 */
 	static boolean isLockFile(Path p) {
 		Path name = p.getFileName();
 		return name != null && name.toString().equals(".lock");
 	}
 
-	/** Whether {@code dir} holds any actual task records ({@code .lock} alone doesn't count). */
+	/**
+	 * Whether {@code dir} holds any actual task records ({@code .lock} alone doesn't
+	 * count).
+	 */
 	static boolean hasTaskRecords(Path dir) throws IOException {
 		if (dir == null || !Files.isDirectory(dir)) {
 			return false;
@@ -128,16 +132,18 @@ final class Transcripts {
 	/**
 	 * As {@link #copyTree} but re-homing each file's content: every occurrence of
 	 * {@code fromPath} in a text file is rewritten to {@code toPath} (see
-	 * {@link #rehomeFileBytes}). Used for the memory and tasks folders, whose free-form files
-	 * may reference absolute paths of the working directory they were written in.
+	 * {@link #rehomeFileBytes}). Used for the memory and tasks folders, whose free-form
+	 * files may reference absolute paths of the working directory they were written in.
 	 */
 	static void copyTreeRehoming(String source, String target, String fromPath, String toPath) throws IOException {
 		copyTreeRehoming(source, target, fromPath, toPath, p -> true);
 	}
 
-	/** As {@link #copyTreeRehoming} but copying only the entries {@code include} accepts. */
-	static void copyTreeRehoming(String source, String target, String fromPath, String toPath,
-			Predicate<Path> include) throws IOException {
+	/**
+	 * As {@link #copyTreeRehoming} but copying only the entries {@code include} accepts.
+	 */
+	static void copyTreeRehoming(String source, String target, String fromPath, String toPath, Predicate<Path> include)
+			throws IOException {
 		Path sourceRoot = Path.of(source);
 		Path targetRoot = Path.of(target);
 		List<Path> paths;
@@ -161,8 +167,8 @@ final class Transcripts {
 
 	/**
 	 * Re-homes a single file's bytes: rewrites every occurrence of {@code fromPath} to
-	 * {@code toPath} when the bytes are valid UTF-8 text; bytes that don't decode as UTF-8 (a
-	 * binary file) are returned unchanged rather than risk corruption.
+	 * {@code toPath} when the bytes are valid UTF-8 text; bytes that don't decode as
+	 * UTF-8 (a binary file) are returned unchanged rather than risk corruption.
 	 */
 	static byte[] rehomeFileBytes(byte[] bytes, String fromPath, String toPath) {
 		CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder()
@@ -181,7 +187,10 @@ final class Transcripts {
 		return text.replace(fromPath, toPath).getBytes(StandardCharsets.UTF_8);
 	}
 
-	/** @return whether {@code dir} exists, is a directory, and contains at least one entry. */
+	/**
+	 * @return whether {@code dir} exists, is a directory, and contains at least one
+	 * entry.
+	 */
 	static boolean isNonEmptyDir(String dir) throws IOException {
 		Path dirPath = Path.of(dir);
 		if (!Files.isDirectory(dirPath)) {
@@ -194,8 +203,8 @@ final class Transcripts {
 
 	/**
 	 * Finds the transcript for {@code sessionId} whose working directory canonicalizes to
-	 * {@code srcReal}, verifying our path-sanitization matches Claude's so we never read (or
-	 * write) the wrong location.
+	 * {@code srcReal}, verifying our path-sanitization matches Claude's so we never read
+	 * (or write) the wrong location.
 	 * @throws IllegalArgumentException if the transcript can't be found, or is found at a
 	 * location our sanitization scheme would not have predicted
 	 */
@@ -205,13 +214,14 @@ final class Transcripts {
 		if (Files.isRegularFile(expected)) {
 			return expected.toString();
 		}
-		// Fallback: search, so we can give a precise error if the sanitization scheme differs.
+		// Fallback: search, so we can give a precise error if the sanitization scheme
+		// differs.
 		if (Files.isDirectory(projectsRootPath)) {
 			try (Stream<Path> dirs = Files.list(projectsRootPath)) {
 				Path found = dirs.map(d -> d.resolve(sessionId + ".jsonl"))
-						.filter(Files::isRegularFile)
-						.findFirst()
-						.orElse(null);
+					.filter(Files::isRegularFile)
+					.findFirst()
+					.orElse(null);
 				if (found != null) {
 					throw new IllegalArgumentException("Found the source transcript at " + found.getParent()
 							+ " but expected " + expected.getParent()
@@ -231,10 +241,11 @@ final class Transcripts {
 	}
 
 	/**
-	 * Re-homes transcript lines: rewrites every string value containing {@code fromPath} to use
-	 * {@code toPath}, and stamps {@code newSessionId} onto each line's {@code sessionId} field.
-	 * Blank lines are dropped and non-JSON lines kept verbatim. Each message's {@code uuid} /
-	 * {@code parentUuid} are intentionally left unchanged (matching {@code --fork-session}).
+	 * Re-homes transcript lines: rewrites every string value containing {@code fromPath}
+	 * to use {@code toPath}, and stamps {@code newSessionId} onto each line's
+	 * {@code sessionId} field. Blank lines are dropped and non-JSON lines kept verbatim.
+	 * Each message's {@code uuid} / {@code parentUuid} are intentionally left unchanged
+	 * (matching {@code --fork-session}).
 	 */
 	static List<String> rehomeLines(List<String> lines, String fromPath, String toPath, String newSessionId)
 			throws IOException {
@@ -260,7 +271,10 @@ final class Transcripts {
 		return out;
 	}
 
-	/** Recursively rewrites every string value that contains {@code from} to use {@code to}. */
+	/**
+	 * Recursively rewrites every string value that contains {@code from} to use
+	 * {@code to}.
+	 */
 	private static void rehome(JsonNode node, String from, String to) {
 		if (node instanceof ObjectNode obj) {
 			List<String> names = new ArrayList<>();

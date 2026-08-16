@@ -43,18 +43,18 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * The listing is the CLI's <em>agent view</em> ({@code claude agents}): every session
  * with a live process — interactive terminals and background agents, including background
- * agents that finished but are still resident (state {@code done}, status {@code idle})
- * — and, with {@link #listLocalSessions(boolean) includeCompleted}, exited sessions as
- * well ({@code --all}, "the full agent view list"). Historical sessions whose transcripts
- * are only on disk are the {@code transcript} package's territory
+ * agents that finished but are still resident (state {@code done}, status {@code idle}) —
+ * and, with {@link #listLocalSessions(boolean) includeCompleted}, exited sessions as well
+ * ({@code --all}, "the full agent view list"). Historical sessions whose transcripts are
+ * only on disk are the {@code transcript} package's territory
  * ({@code TranscriptDirectory}); this class reports what the CLI's supervisor reports.
  * </p>
  *
  * <p>
- * Because the wire format is produced by the CLI and evolves with it, {@link LocalSession}
- * pairs typed accessors for every field observed on the wire (Claude CLI 2.1.210) with
- * {@link LocalSession#allValues()}, a flattened {@code path -> string} map of the raw
- * JSON entry in which unknown/new fields are preserved.
+ * Because the wire format is produced by the CLI and evolves with it,
+ * {@link LocalSession} pairs typed accessors for every field observed on the wire (Claude
+ * CLI 2.1.210) with {@link LocalSession#allValues()}, a flattened {@code path -> string}
+ * map of the raw JSON entry in which unknown/new fields are preserved.
  * </p>
  *
  * <h2>Example</h2> <pre>{@code
@@ -130,12 +130,16 @@ public final class ClaudeLocalSessions {
 	public record LocalSession(String id, String sessionId, String name, String cwd, String kind, Instant startedAt,
 			String state, String status, Integer pid, Map<String, String> allValues) {
 
-		/** @return whether this entry is a background agent. */
+		/**
+		 * @return whether this entry is a background agent.
+		 */
 		public boolean isBackground() {
 			return "background".equals(kind);
 		}
 
-		/** @return whether this entry is an interactive session. */
+		/**
+		 * @return whether this entry is an interactive session.
+		 */
 		public boolean isInteractive() {
 			return "interactive".equals(kind);
 		}
@@ -179,8 +183,8 @@ public final class ClaudeLocalSessions {
 		}
 		CommandResult r = run(command, CLI_TIMEOUT);
 		if (r.exitCode() != 0) {
-			throw new IOException("`" + String.join(" ", command) + "` failed (exit " + r.exitCode() + "): "
-					+ errorDetail(r));
+			throw new IOException(
+					"`" + String.join(" ", command) + "` failed (exit " + r.exitCode() + "): " + errorDetail(r));
 		}
 		return parseSessions(r.stdout());
 	}
@@ -195,8 +199,7 @@ public final class ClaudeLocalSessions {
 	public static List<LocalSession> parseSessions(String json) throws IOException {
 		JsonNode root = MAPPER.readTree(json);
 		if (root == null || !root.isArray()) {
-			throw new IOException("Expected a JSON array from `claude agents --json` but got: "
-					+ truncate(json, 300));
+			throw new IOException("Expected a JSON array from `claude agents --json` but got: " + truncate(json, 300));
 		}
 		List<LocalSession> sessions = new ArrayList<>();
 		for (JsonNode entry : root) {
@@ -210,17 +213,9 @@ public final class ClaudeLocalSessions {
 	// ------------------------------------------------------------------
 
 	private static LocalSession parseSession(JsonNode n) {
-		return new LocalSession(
-				text(n, "id"),
-				text(n, "sessionId"),
-				text(n, "name"),
-				text(n, "cwd"),
-				text(n, "kind"),
-				n.hasNonNull("startedAt") ? Instant.ofEpochMilli(n.get("startedAt").asLong()) : null,
-				text(n, "state"),
-				text(n, "status"),
-				n.hasNonNull("pid") ? n.get("pid").asInt() : null,
-				flatten(n));
+		return new LocalSession(text(n, "id"), text(n, "sessionId"), text(n, "name"), text(n, "cwd"), text(n, "kind"),
+				n.hasNonNull("startedAt") ? Instant.ofEpochMilli(n.get("startedAt").asLong()) : null, text(n, "state"),
+				text(n, "status"), n.hasNonNull("pid") ? n.get("pid").asInt() : null, flatten(n));
 	}
 
 	private static String text(JsonNode n, String field) {
@@ -242,8 +237,8 @@ public final class ClaudeLocalSessions {
 	private static void flattenInto(String prefix, JsonNode node, Map<String, String> out) {
 		if (node.isObject()) {
 			node.properties()
-				.forEach(e -> flattenInto(prefix.isEmpty() ? e.getKey() : prefix + "." + e.getKey(), e.getValue(),
-						out));
+				.forEach(
+						e -> flattenInto(prefix.isEmpty() ? e.getKey() : prefix + "." + e.getKey(), e.getValue(), out));
 		}
 		else if (node.isArray()) {
 			for (int i = 0; i < node.size(); i++) {

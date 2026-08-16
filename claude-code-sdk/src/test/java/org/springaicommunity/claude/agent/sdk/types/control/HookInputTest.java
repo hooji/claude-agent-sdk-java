@@ -26,11 +26,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Tests deserialization of {@link HookInput} payloads sent by the Claude Code CLI.
  *
- * <p>The CLI evolves independently of the SDK and may add fields to the hook payload (for
+ * <p>
+ * The CLI evolves independently of the SDK and may add fields to the hook payload (for
  * example, newer CLI versions include an {@code effort} field on {@code PreToolUse}). The
  * SDK must tolerate such unknown fields, otherwise the hook callback fails to deserialize
- * and the registered hook never runs. A plain (strict) {@link ObjectMapper} is used here on
- * purpose to assert the type itself is tolerant, independent of any mapper configuration.
+ * and the registered hook never runs. A plain (strict) {@link ObjectMapper} is used here
+ * on purpose to assert the type itself is tolerant, independent of any mapper
+ * configuration.
  */
 class HookInputTest {
 

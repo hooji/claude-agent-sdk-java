@@ -30,20 +30,24 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * The single source of truth for the SDK's per-session metadata sidecar: a Java-serialized
- * {@code Map<String, Serializable>} stored next to a session's {@code <id>.jsonl} transcript as
- * {@code <id>.meta}, inside the same Claude Code projects folder.
+ * The single source of truth for the SDK's per-session metadata sidecar: a
+ * Java-serialized {@code Map<String, Serializable>} stored next to a session's
+ * {@code <id>.jsonl} transcript as {@code <id>.meta}, inside the same Claude Code
+ * projects folder.
  *
- * <p>This is an SDK convention: Claude Code itself neither writes nor reads {@code .meta} files,
- * and (the loader only looks at {@code *.jsonl}) leaves them undisturbed. Everything that needs
- * to read, write, locate, or compare a {@code .meta} file goes through here so the on-disk
- * format and naming never drift between {@link Session}, {@link TranscriptDirectory} and
- * {@link SessionArchive}.
+ * <p>
+ * This is an SDK convention: Claude Code itself neither writes nor reads {@code .meta}
+ * files, and (the loader only looks at {@code *.jsonl}) leaves them undisturbed.
+ * Everything that needs to read, write, locate, or compare a {@code .meta} file goes
+ * through here so the on-disk format and naming never drift between {@link Session},
+ * {@link TranscriptDirectory} and {@link SessionArchive}.
  *
- * <p>The map is serialized with {@link java.io.LinkedHashMap} so iteration order is preserved
- * across a round trip. Values are stored with Java serialization, so reading a {@code .meta}
- * file (or an archived copy) requires the value classes on the classpath; reading an untrusted
- * file carries the usual Java-deserialization risk and any failure is allowed to propagate.
+ * <p>
+ * The map is serialized with {@link java.io.LinkedHashMap} so iteration order is
+ * preserved across a round trip. Values are stored with Java serialization, so reading a
+ * {@code .meta} file (or an archived copy) requires the value classes on the classpath;
+ * reading an untrusted file carries the usual Java-deserialization risk and any failure
+ * is allowed to propagate.
  */
 final class SessionMetadata {
 
@@ -53,7 +57,10 @@ final class SessionMetadata {
 	private SessionMetadata() {
 	}
 
-	/** @return the {@code <id>.meta} sidecar path for a {@code <id>.jsonl} transcript file. */
+	/**
+	 * @return the {@code <id>.meta} sidecar path for a {@code <id>.jsonl} transcript
+	 * file.
+	 */
 	static String fileFor(String transcriptFile) {
 		Path file = Path.of(transcriptFile);
 		String name = file.getFileName().toString();
@@ -63,10 +70,10 @@ final class SessionMetadata {
 	}
 
 	/**
-	 * Reads the metadata map from {@code metaFile}, returning a fresh empty (mutable, insertion
-	 * ordered) map if the file does not exist.
-	 * @throws IOException if the file exists but cannot be read or deserialized (e.g. a value's
-	 * class is missing) — never swallowed
+	 * Reads the metadata map from {@code metaFile}, returning a fresh empty (mutable,
+	 * insertion ordered) map if the file does not exist.
+	 * @throws IOException if the file exists but cannot be read or deserialized (e.g. a
+	 * value's class is missing) — never swallowed
 	 */
 	static Map<String, Serializable> readFromFile(String metaFile) throws IOException {
 		Path file = Path.of(metaFile);
@@ -76,7 +83,10 @@ final class SessionMetadata {
 		return deserialize(Files.readAllBytes(file));
 	}
 
-	/** Serializes {@code map} and writes it to {@code metaFile} (an empty map writes an empty-map file). */
+	/**
+	 * Serializes {@code map} and writes it to {@code metaFile} (an empty map writes an
+	 * empty-map file).
+	 */
 	static void writeToFile(String metaFile, Map<String, Serializable> map) throws IOException {
 		Files.write(Path.of(metaFile), serialize(map));
 	}
@@ -90,7 +100,10 @@ final class SessionMetadata {
 		return bos.toByteArray();
 	}
 
-	/** Deserializes bytes written by {@link #serialize} into a fresh mutable, insertion-ordered map. */
+	/**
+	 * Deserializes bytes written by {@link #serialize} into a fresh mutable,
+	 * insertion-ordered map.
+	 */
 	@SuppressWarnings("unchecked")
 	static Map<String, Serializable> deserialize(byte[] bytes) throws IOException {
 		try (ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes))) {
@@ -102,10 +115,11 @@ final class SessionMetadata {
 	}
 
 	/**
-	 * Order-sensitive map equality: same size, same key/value pairs, in the same iteration order.
-	 * Used to verify a {@link Session}'s in-memory metadata still matches its {@code .meta} file
-	 * (a plain {@link Map#equals} would ignore the {@code LinkedHashMap} ordering). Values are
-	 * compared with {@link Objects#equals}, so it relies on each value's own {@code equals}.
+	 * Order-sensitive map equality: same size, same key/value pairs, in the same
+	 * iteration order. Used to verify a {@link Session}'s in-memory metadata still
+	 * matches its {@code .meta} file (a plain {@link Map#equals} would ignore the
+	 * {@code LinkedHashMap} ordering). Values are compared with {@link Objects#equals},
+	 * so it relies on each value's own {@code equals}.
 	 */
 	static boolean equalsOrdered(Map<String, Serializable> a, Map<String, Serializable> b) {
 		if (a == b) {

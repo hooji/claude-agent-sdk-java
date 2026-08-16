@@ -173,10 +173,11 @@ public interface ClaudeAsyncClient extends TranscriptAware {
 		 * "typewriter" UI.
 		 *
 		 * <p>
-		 * <b>Requires</b> the client to be built with {@code includePartialMessages(true)}
-		 * (CLI flag {@code --include-partial-messages}); otherwise the CLI does not emit
-		 * partial events and this stream yields nothing but still completes normally at the
-		 * end of the turn.
+		 * <b>Requires</b> the client to be built with
+		 * {@code includePartialMessages(true)} (CLI flag
+		 * {@code --include-partial-messages}); otherwise the CLI does not emit partial
+		 * events and this stream yields nothing but still completes normally at the end
+		 * of the turn.
 		 * </p>
 		 * <pre>{@code
 		 * client.query("Write a haiku").partialTextStream()

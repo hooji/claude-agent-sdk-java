@@ -30,10 +30,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Tests the working-directory → transcript-folder mapping
- * ({@link TranscriptDirectory#projectsDirFor}, {@link TranscriptDirectory#forWorkingDirectory})
- * and {@link TranscriptDirectory#mostRecentSession()}.
+ * ({@link TranscriptDirectory#projectsDirFor},
+ * {@link TranscriptDirectory#forWorkingDirectory}) and
+ * {@link TranscriptDirectory#mostRecentSession()}.
  *
- * <p>The sanitization rules are verified against the real CLI (v2.1.170): running in
+ * <p>
+ * The sanitization rules are verified against the real CLI (v2.1.170): running in
  * {@code /tmp/xprt test/under_score.d} stores transcripts under
  * {@code -tmp-xprt-test-under-score-d}, and running inside a symlinked directory stores
  * them under the canonical (symlink-resolved) path.
@@ -50,7 +52,7 @@ class TranscriptDirectoryMappingTest {
 		// The user's UTM example: spaces in a /Volumes path.
 		Path utm = Path.of("/Volumes/My Shared Files/shared/claude/test2");
 		assertThat(Path.of(TranscriptDirectory.projectsDirFor(utm.toString(), "/p")).getFileName().toString())
-				.isEqualTo("-Volumes-My-Shared-Files-shared-claude-test2");
+			.isEqualTo("-Volumes-My-Shared-Files-shared-claude-test2");
 	}
 
 	@Test
@@ -62,10 +64,11 @@ class TranscriptDirectoryMappingTest {
 		String viaLink = TranscriptDirectory.projectsDirFor(link.toString(), "/p");
 		String viaTarget = TranscriptDirectory.projectsDirFor(target.toString(), "/p");
 
-		// The CLI keys storage by the canonical path, so both must map to the same folder.
+		// The CLI keys storage by the canonical path, so both must map to the same
+		// folder.
 		assertThat(viaLink).isEqualTo(viaTarget);
 		assertThat(Path.of(viaLink).getFileName().toString())
-				.isEqualTo(TranscriptDirectory.sanitize(target.toRealPath().toString()));
+			.isEqualTo(TranscriptDirectory.sanitize(target.toRealPath().toString()));
 	}
 
 	@Test
@@ -108,11 +111,14 @@ class TranscriptDirectoryMappingTest {
 		assertThat(d.mostRecentSession().sessionId()).isEqualTo(TranscriptDirectoryTest.B);
 	}
 
-	/** Copies the fork-lineage fixtures into the projects folder mapped to {@code workingDir}. */
+	/**
+	 * Copies the fork-lineage fixtures into the projects folder mapped to
+	 * {@code workingDir}.
+	 */
 	static Path copyFixturesTo(Path projectsRoot, Path workingDir) throws Exception {
 		Path fixtures = Path.of(TranscriptDirectoryMappingTest.class.getResource("/transcripts/fork-lineage").toURI());
-		Path transcripts = Files
-			.createDirectories(Path.of(TranscriptDirectory.projectsDirFor(workingDir.toString(), projectsRoot.toString())));
+		Path transcripts = Files.createDirectories(
+				Path.of(TranscriptDirectory.projectsDirFor(workingDir.toString(), projectsRoot.toString())));
 		try (var files = Files.list(fixtures)) {
 			for (Path f : files.toList()) {
 				Files.copy(f, transcripts.resolve(f.getFileName().toString()));

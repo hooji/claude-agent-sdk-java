@@ -48,8 +48,7 @@ class StreamEventParsingTest {
 
 	@Test
 	void nonTextStreamEventHasNoTextDelta() throws Exception {
-		String json = "{\"type\":\"stream_event\",\"session_id\":\"s1\","
-				+ "\"event\":{\"type\":\"message_stop\"}}";
+		String json = "{\"type\":\"stream_event\",\"session_id\":\"s1\"," + "\"event\":{\"type\":\"message_stop\"}}";
 
 		Message msg = parser.parseMessage(json);
 

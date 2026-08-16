@@ -31,7 +31,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * reads and writes, as opposed to the SDK-private {@code .meta} sidecar
  * ({@link Session#metaData()}).
  *
- * <p>Claude Code stores these as dedicated bookkeeping lines <em>appended to the session's
+ * <p>
+ * Claude Code stores these as dedicated bookkeeping lines <em>appended to the session's
  * transcript {@code .jsonl}</em>, one JSON object per write, latest line wins:
  *
  * <pre>{@code
@@ -43,27 +44,35 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  * <ul>
  * <li><b>{@code tag}</b> — a single free-form string per session. This is what the Claude
  * Code desktop app calls a <b>custom group</b> (sidebar "Group by → Custom groups") and
- * what groups sessions in the CLI's {@code /resume} picker; the official Agent SDK exposes
- * it as {@code tagSession(sessionId, tag)}. An empty-string tag line clears the tag.</li>
+ * what groups sessions in the CLI's {@code /resume} picker; the official Agent SDK
+ * exposes it as {@code tagSession(sessionId, tag)}. An empty-string tag line clears the
+ * tag.</li>
  * <li><b>{@code customTitle}</b> — the user-set session title (the CLI's {@code /rename},
  * the picker's rename action; {@code renameSession} in the official Agent SDK).</li>
  * <li><b>{@code aiTitle}</b> — the automatically generated session title. Written by the
  * CLI only; the SDK reads it but never writes it.</li>
  * </ul>
  *
- * <p>Instances are live holders owned by a {@link Session}: loading populates them
- * (last-wins over the transcript), and {@link Session#setTag}, {@link Session#clearTag} and
- * {@link Session#setCustomTitle} persist a new line and update the holder in one step.
+ * <p>
+ * Instances are live holders owned by a {@link Session}: loading populates them
+ * (last-wins over the transcript), and {@link Session#setTag}, {@link Session#clearTag}
+ * and {@link Session#setCustomTitle} persist a new line and update the holder in one
+ * step.
  */
 public final class SessionLabels {
 
 	/** Line type of a tag label ({@code {"type":"tag","tag":...}}). */
 	static final String TYPE_TAG = "tag";
 
-	/** Line type of a user-set title label ({@code {"type":"custom-title","customTitle":...}}). */
+	/**
+	 * Line type of a user-set title label
+	 * ({@code {"type":"custom-title","customTitle":...}}).
+	 */
 	static final String TYPE_CUSTOM_TITLE = "custom-title";
 
-	/** Line type of a generated title label ({@code {"type":"ai-title","aiTitle":...}}). */
+	/**
+	 * Line type of a generated title label ({@code {"type":"ai-title","aiTitle":...}}).
+	 */
 	static final String TYPE_AI_TITLE = "ai-title";
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -100,7 +109,10 @@ public final class SessionLabels {
 		return aiTitle;
 	}
 
-	/** Updates the in-memory tag ({@code null} = cleared); persistence is the caller's job. */
+	/**
+	 * Updates the in-memory tag ({@code null} = cleared); persistence is the caller's
+	 * job.
+	 */
 	void tagValue(String tag) {
 		this.tag = emptyToNull(tag);
 	}
@@ -111,9 +123,9 @@ public final class SessionLabels {
 	}
 
 	/**
-	 * Applies one transcript line to this holder if it is a label line; empty values clear
-	 * (the CLI writes {@code "tag":""} to remove a tag). Call in file order so the last
-	 * occurrence wins, matching the CLI's read semantics.
+	 * Applies one transcript line to this holder if it is a label line; empty values
+	 * clear (the CLI writes {@code "tag":""} to remove a tag). Call in file order so the
+	 * last occurrence wins, matching the CLI's read semantics.
 	 * @param type the line's {@code type} field ({@code null} tolerated)
 	 * @param node the line's JSON
 	 */
@@ -169,10 +181,10 @@ public final class SessionLabels {
 
 	/**
 	 * Appends a tag line to {@code transcriptFile}, exactly as the CLI's
-	 * {@code tagSession} does: {@code {"type":"tag","tag":"<tag>","sessionId":"<id>"}} with
-	 * an empty string meaning "clear". The transcript must already exist and be non-empty
-	 * (the CLI refuses to label a session that has no history — an empty file would not be
-	 * a resumable session).
+	 * {@code tagSession} does: {@code {"type":"tag","tag":"<tag>","sessionId":"<id>"}}
+	 * with an empty string meaning "clear". The transcript must already exist and be
+	 * non-empty (the CLI refuses to label a session that has no history — an empty file
+	 * would not be a resumable session).
 	 * @param transcriptFile the session's {@code .jsonl}
 	 * @param sessionId the session id stamped on the line
 	 * @param tag the trimmed tag, or {@code null} to clear
