@@ -249,6 +249,135 @@ class ClaudeCloudSessionsTest {
 
 	}
 
+	/** Parsing a single-session document ({@code GET /v1/code/sessions/<id>}). */
+	@Nested
+	class SingleSession {
+
+		@Test
+		void parsesBareSessionObject() throws IOException {
+			CloudSession s = ClaudeCloudSessions.parseSessionJson(SESSION);
+			assertThat(s.id()).isEqualTo("cse_0123456789abcdef");
+			assertThat(s.isIdle()).isTrue();
+		}
+
+		@Test
+		void parsesDataWrappedSessionObject() throws IOException {
+			CloudSession s = ClaudeCloudSessions.parseSessionJson("{\"data\":" + SESSION + "}");
+			assertThat(s.id()).isEqualTo("cse_0123456789abcdef");
+		}
+
+		@Test
+		void blankSessionIdIsRejectedBeforeAnyIo() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.getCloudSession("tok", " "))
+				.isInstanceOf(IllegalArgumentException.class);
+		}
+
+	}
+
+	/**
+	 * The stored-credential introspection: {@code parseCredentials} feeds
+	 * {@code getClaudeOAuthCredentials*}, {@code isOAuthTokenValid} and
+	 * {@code oauthTokenTimeRemaining}.
+	 */
+	@Nested
+	class OAuthCredentialsIntrospection {
+
+		private String credentialsJson(long expiresAtMillis) {
+			return """
+					{"claudeAiOauth": {
+					  "accessToken": "sk-ant-oat01-abc",
+					  "refreshToken": "sk-ant-ort01-def",
+					  "expiresAt": %d,
+					  "scopes": ["user:inference", "user:profile"],
+					  "subscriptionType": "max"
+					}}""".formatted(expiresAtMillis);
+		}
+
+		@Test
+		void parsesAllFields() throws IOException {
+			long expiry = Instant.now().plusSeconds(3600).toEpochMilli();
+			var creds = ClaudeCloudSessions.parseCredentials(credentialsJson(expiry), "test");
+			assertThat(creds.accessToken()).isEqualTo("sk-ant-oat01-abc");
+			assertThat(creds.expiresAt()).isEqualTo(Instant.ofEpochMilli(expiry));
+			assertThat(creds.scopes()).containsExactly("user:inference", "user:profile");
+			assertThat(creds.subscriptionType()).isEqualTo("max");
+		}
+
+		@Test
+		void validTokenReportsPositiveTimeRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials(credentialsJson(Instant.now().plusSeconds(3600).toEpochMilli()), "test");
+			assertThat(creds.isValid()).isTrue();
+			assertThat(creds.timeRemaining()).isPresent();
+			assertThat(creds.timeRemaining().get()).isPositive();
+			assertThat(creds.timeRemaining().get()).isLessThanOrEqualTo(java.time.Duration.ofHours(1));
+		}
+
+		@Test
+		void expiredTokenIsInvalidWithNegativeTimeRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials(credentialsJson(Instant.now().minusSeconds(600).toEpochMilli()), "test");
+			assertThat(creds.isValid()).isFalse();
+			assertThat(creds.timeRemaining()).isPresent();
+			assertThat(creds.timeRemaining().get()).isNegative();
+		}
+
+		@Test
+		void toleratesEpochSecondsExpiry() throws IOException {
+			long seconds = Instant.now().plusSeconds(3600).getEpochSecond();
+			var creds = ClaudeCloudSessions.parseCredentials(credentialsJson(seconds), "test");
+			assertThat(creds.expiresAt()).isEqualTo(Instant.ofEpochMilli(seconds * 1000));
+			assertThat(creds.isValid()).isTrue();
+		}
+
+		@Test
+		void missingExpiryCountsAsValidWithUnknownRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials("{\"claudeAiOauth\": {\"accessToken\": \"sk-ant-oat01-abc\"}}", "test");
+			assertThat(creds.isValid()).isTrue();
+			assertThat(creds.timeRemaining()).isEmpty();
+			assertThat(creds.scopes()).isEmpty();
+			assertThat(creds.subscriptionType()).isNull();
+		}
+
+		@Test
+		void missingAccessTokenIsRejected() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.parseCredentials("{\"claudeAiOauth\": {}}", "test"))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("accessToken");
+		}
+
+		@Test
+		void readsCredentialsFromConfigDir(@org.junit.jupiter.api.io.TempDir java.nio.file.Path configDir)
+				throws IOException {
+			long expiry = Instant.now().plusSeconds(1800).toEpochMilli();
+			java.nio.file.Files.writeString(configDir.resolve(".credentials.json"), credentialsJson(expiry));
+			var creds = ClaudeCloudSessions.getClaudeOAuthCredentialsLinux(configDir);
+			assertThat(creds.isValid()).isTrue();
+			assertThat(ClaudeCloudSessions.getClaudeOAuthTokenLinux(configDir)).isEqualTo("sk-ant-oat01-abc");
+		}
+
+		@Test
+		void tokenGetterStillThrowsOnExpiredCredential(@org.junit.jupiter.api.io.TempDir java.nio.file.Path configDir)
+				throws IOException {
+			java.nio.file.Files.writeString(configDir.resolve(".credentials.json"),
+					credentialsJson(Instant.now().minusSeconds(60).toEpochMilli()));
+			// The introspection API returns the expired credential...
+			assertThat(ClaudeCloudSessions.getClaudeOAuthCredentialsLinux(configDir).isValid()).isFalse();
+			// ...while the historical token getter keeps its throw-on-expired contract.
+			assertThatThrownBy(() -> ClaudeCloudSessions.getClaudeOAuthTokenLinux(configDir))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("expired");
+		}
+
+		@Test
+		void refreshInvocationIsMinimalAndHeadless() {
+			assertThat(ClaudeCloudSessions.refreshInvocationCommand("/usr/bin/claude"))
+				.containsExactly("/usr/bin/claude", "-p", "ok", "--max-turns", "1", "--model", "haiku");
+		}
+
+	}
+
 	/**
 	 * The update methods issue {@code PUT /v1/code/sessions/<id>}; these tests cover the
 	 * request-body construction and the validations that fire before any network I/O.

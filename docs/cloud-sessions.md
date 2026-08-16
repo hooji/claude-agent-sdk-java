@@ -55,6 +55,42 @@ Monitoring loop condition ideas (see field docs below):
   `statusCategory` (`review_ready`, `need_input`, ...), a one-line
   `statusDetail`, and `needsAction`
 
+## Fetching one session
+
+```java
+Optional<CloudSession> s = ClaudeCloudSessions.getCloudSession(token, "cse_...");
+// or, using this machine's login:
+Optional<CloudSession> s = ClaudeCloudSessions.getCloudSession("cse_...");
+```
+
+Issues `GET /v1/code/sessions/<id>`. Because the API is undocumented, a `404`/`405` on
+the by-id path (ambiguous between "no such session" and "no such endpoint shape") falls
+back to scanning the paged list, so an empty `Optional` really means the session isn't
+visible to this token.
+
+## Watching for turn completion
+
+`watchForTurnEnd` invokes your callback **once**, when a session finishes its turn —
+`workerStatus` observed as `"idle"` or `"requires_action"` — including immediately if
+it is already in one of those states when the watch starts (the turn is already over):
+
+```java
+try (CloudSessionWatch watch = ClaudeCloudSessions.watchForTurnEnd(token, sessionId,
+        Duration.ofSeconds(15),
+        session -> System.out.println("done: " + session.title()),
+        error -> log.warn("poll failed", error))) {
+    // callback fires on a daemon polling thread; close() stops the watch early
+}
+```
+
+The API has no push channel, so the watch polls `getCloudSession` under the covers. To
+stay a good citizen against the undocumented API, intervals below **15 seconds**
+(`CloudSessionWatch.MIN_POLL_INTERVAL`, also the default) are clamped up. Transient
+polling errors go to the error handler (or the log) and polling continues; the watch
+gives up after 8 consecutive failures or when the session disappears, and closes
+itself after firing. For watches that may outlast the token's few-hour lifetime,
+`refreshOAuthToken()` (below) keeps the credential usable.
+
 ## Getting a token
 
 ```java
@@ -80,6 +116,39 @@ own `CLAUDE_CONFIG_DIR`), then call the Linux variant once per directory.
   error if the stored token is already expired — running any `claude` command
   refreshes the stored credential. For a long-running poller, simply re-read
   the token (cheap) on every cycle, or at least on any 401.
+
+### Token introspection & refresh
+
+The stored credential can be inspected instead of failed on:
+
+```java
+boolean ok = ClaudeCloudSessions.isOAuthTokenValid();          // total: false on any problem
+Optional<Duration> left = ClaudeCloudSessions.oauthTokenTimeRemaining(); // negative = expired
+
+// the full stored credential (expired ones are returned, not thrown on):
+var creds = ClaudeCloudSessions.getClaudeOAuthCredentials();
+creds.isValid();          // present and not past expiresAt
+creds.timeRemaining();    // Optional<Duration>, negative when expired
+creds.scopes();           // e.g. [user:inference, user:sessions:claude_code]
+creds.subscriptionType(); // e.g. "max"
+```
+
+(The refresh token deliberately stays unexposed.) And the refresh itself can be
+driven from the SDK:
+
+```java
+String fresh = ClaudeCloudSessions.refreshOAuthToken();  // valid ≥5min, or refreshes
+```
+
+The CLI has no dedicated refresh command — it refreshes the stored credential
+transparently whenever it makes an authenticated API request. `refreshOAuthToken()`
+therefore triggers exactly that when (and only when) the stored token is expired or
+near expiry: one minimal headless turn (`claude -p ok --max-turns 1 --model haiku`,
+one tiny model call against your subscription), run with `ANTHROPIC_API_KEY` /
+`ANTHROPIC_AUTH_TOKEN` / `CLAUDE_CODE_OAUTH_TOKEN` stripped from its environment so
+the CLI must use — and thereby refresh — the stored login. The outcome is verified by
+re-reading the credential; if it is still expired (e.g. the refresh token itself has
+lapsed and `claude auth login` is needed), the method throws rather than pretending.
 
 ## API behavior notes
 
