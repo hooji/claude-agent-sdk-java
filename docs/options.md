@@ -115,6 +115,7 @@ flag it maps to (or "SDK-side" when none).
 | [`plugins`](#plugins) | `--plugin-dir` | empty |
 | [`mcpServers`](#mcpservers) | `--mcp-config` | empty |
 | [`env`](#env) | SDK-side (process env) | empty |
+| [`oauthToken`](#oauthtoken) | SDK-side (env `CLAUDE_CODE_OAUTH_TOKEN`) | none (ambient auth) |
 | [`otelLogRawApiBodiesDirectory`](#otellograwapibodiesdirectory) | SDK-side (env vars) | off |
 | [`user`](#user) | SDK-side (`sudo -u`) | none |
 | [`maxBufferSize`](#maxbuffersize) | SDK-side | 1 MB |
@@ -351,6 +352,22 @@ itself. For reference, the SDK-provided baseline: the parent process environment
 `ANTHROPIC_API_KEY` (when present in the JVM's environment), plus
 `CLAUDE_CODE_ENTRYPOINT=sdk-java` and `CLAUDE_AGENT_SDK_JAVA_VERSION` for telemetry
 identification.
+
+#### `oauthToken`
+
+SDK-side convenience over `env` — authenticates the CLI subprocess with a **long-lived
+Claude OAuth token** by injecting it as `CLAUDE_CODE_OAUTH_TOKEN` (the documented
+headless-authentication mechanism; mint one with `claude setup-token`, requires a
+Claude subscription). Available on `CLIOptions.builder()` and on both
+`ClaudeClient.sync()/async()` fluent specs; `null` is a no-op so the value can be
+plumbed through unconditionally.
+
+Two sharp edges, both inherent to the CLI: these tokens are *inference-only*
+(`user:inference`/`user:profile` scopes) — they run models but are rejected by the
+cloud-sessions API, which needs the short-lived interactive login token (see
+[cloud-sessions.md](cloud-sessions.md)); and the CLI prefers `ANTHROPIC_API_KEY` over
+an OAuth token when both reach the process. A later explicit
+`env("CLAUDE_CODE_OAUTH_TOKEN", ...)` overrides this option (last write wins).
 
 #### `otelLogRawApiBodiesDirectory`
 

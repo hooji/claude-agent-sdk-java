@@ -229,6 +229,8 @@ public interface ClaudeClient {
 
 		private Map<String, McpServerConfig> mcpServers = new HashMap<>();
 
+		private String oauthToken;
+
 		SyncSpec() {
 		}
 
@@ -405,6 +407,20 @@ public interface ClaudeClient {
 		}
 
 		/**
+		 * Authenticates the CLI process with a long-lived Claude OAuth token (created
+		 * with {@code claude setup-token}), injected as the
+		 * {@code CLAUDE_CODE_OAUTH_TOKEN} environment variable of the subprocess. See
+		 * {@link CLIOptions.Builder#oauthToken(String)} for the full semantics.
+		 * @param oauthToken the long-lived OAuth token, or null to use the machine's
+		 * ambient authentication
+		 * @return this builder instance for method chaining
+		 */
+		public SyncSpec oauthToken(String oauthToken) {
+			this.oauthToken = oauthToken;
+			return this;
+		}
+
+		/**
 		 * Builds and returns the configured ClaudeSyncClient.
 		 * @return a new ClaudeSyncClient instance
 		 * @throws IllegalArgumentException if workingDirectory is not set
@@ -428,6 +444,7 @@ public interface ClaudeClient {
 				.maxTurns(maxTurns)
 				.maxBudgetUsd(maxBudgetUsd)
 				.mcpServers(mcpServers)
+				.oauthToken(oauthToken)
 				.build();
 
 			return new DefaultClaudeSyncClient(workingDirectory, options, timeout, claudePath, hookRegistry);
@@ -667,6 +684,8 @@ public interface ClaudeClient {
 
 		private boolean includePartialMessages = false;
 
+		private String oauthToken;
+
 		AsyncSpec() {
 		}
 
@@ -769,6 +788,20 @@ public interface ClaudeClient {
 		}
 
 		/**
+		 * Authenticates the CLI process with a long-lived Claude OAuth token (created
+		 * with {@code claude setup-token}), injected as the
+		 * {@code CLAUDE_CODE_OAUTH_TOKEN} environment variable of the subprocess. See
+		 * {@link CLIOptions.Builder#oauthToken(String)} for the full semantics.
+		 * @param oauthToken the long-lived OAuth token, or null to use the machine's
+		 * ambient authentication
+		 * @return this builder
+		 */
+		public AsyncSpec oauthToken(String oauthToken) {
+			this.oauthToken = oauthToken;
+			return this;
+		}
+
+		/**
 		 * Builds and returns the configured ClaudeAsyncClient.
 		 * @return a new ClaudeAsyncClient instance
 		 * @throws IllegalArgumentException if workingDirectory is not set
@@ -792,6 +825,7 @@ public interface ClaudeClient {
 				.maxBudgetUsd(maxBudgetUsd)
 				.mcpServers(mcpServers)
 				.includePartialMessages(includePartialMessages)
+				.oauthToken(oauthToken)
 				.build();
 
 			return new DefaultClaudeAsyncClient(workingDirectory, options, timeout, claudePath, hookRegistry);

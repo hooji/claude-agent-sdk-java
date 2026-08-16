@@ -675,6 +675,34 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		}
 
 		/**
+		 * Authenticates the CLI process with a long-lived Claude OAuth token, by setting
+		 * the {@code CLAUDE_CODE_OAUTH_TOKEN} environment variable for the subprocess
+		 * (the documented headless-authentication mechanism; create such a token with
+		 * {@code claude setup-token}).
+		 * <p>
+		 * These tokens are <b>inference-only</b> by design ({@code user:inference} /
+		 * {@code user:profile} scopes): they run models fine but are rejected by the
+		 * cloud-sessions API (see
+		 * {@code org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions},
+		 * which needs the short-lived interactive login token instead). Note the CLI
+		 * prefers {@code ANTHROPIC_API_KEY} over an OAuth token when both reach the
+		 * process, and an explicit {@code env("CLAUDE_CODE_OAUTH_TOKEN", ...)} set
+		 * afterward overrides this value (last write wins).
+		 * @param oauthToken the long-lived OAuth token; {@code null} is a no-op so the
+		 * value can be plumbed through unconditionally
+		 * @return this builder
+		 */
+		public Builder oauthToken(String oauthToken) {
+			if (oauthToken == null) {
+				return this;
+			}
+			if (oauthToken.isBlank()) {
+				throw new IllegalArgumentException("oauthToken must be non-blank (or null to skip)");
+			}
+			return env("CLAUDE_CODE_OAUTH_TOKEN", oauthToken);
+		}
+
+		/**
 		 * Sets the maximum buffer size for JSON parsing.
 		 * @param maxBufferSize maximum bytes (default 1MB)
 		 * @return this builder
