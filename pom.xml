@@ -99,6 +99,18 @@
 
     <packaging>pom</packaging>
 
+    <!-- Where `mvn deploy` publishes: this repository's own Maven registry
+         on GitHub Packages. The `github` server id maps to credentials in
+         ~/.m2/settings.xml — in CI the "Configure Maven auth" step in
+         release.yml writes them from the workflow's own GITHUB_TOKEN. -->
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages — hooji/claude-agent-sdk-java</name>
+            <url>https://maven.pkg.github.com/hooji/claude-agent-sdk-java</url>
+        </repository>
+    </distributionManagement>
+
     <modules>
         <module>claude-code-sdk</module>
     </modules>

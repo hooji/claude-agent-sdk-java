@@ -12,6 +12,11 @@ This project ships releases by merging to `main`:
 - On your **next turn, assume the previous PR has already been merged.** Keep committing
   to your assigned branch; the new commits accrue to a **new** PR that you open when the
   next chunk of work is ready to push.
+- Each release also publishes the parent POM and the `claude-code-sdk` jar to this repo's
+  **GitHub Packages Maven registry** (`org.springaicommunity:claude-code-sdk`), then **prunes
+  the registry to the newest version only** — the GitHub Release page is the permanent
+  archive, so never depend on an older registry version. The fat jar remains a Release-page
+  asset only.
 - Do not assume a prior PR is still open or try to add to it — once merged it is closed.
   After a merge, `main` has advanced, so a fresh PR from the same branch naturally shows
   only the commits made since then. Create a new PR for each subsequent batch of work.

@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: write   # needed to create the release and upload assets
+  packages: write   # mvn deploy to this repo's GitHub Packages Maven registry
 
 jobs:
   release:
@@ -37,6 +38,33 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Configure Maven auth for GitHub Packages
+        # Replaces the runner's settings.xml with the two server entries any
+        # build here may need: `github` publishes this repo's own packages
+        # (the workflow's GITHUB_TOKEN can write those), and `github-hooji`
+        # reads packages of other hooji repositories (needs the
+        # CROSS_REPO_TOKEN PAT — GITHUB_TOKEN cannot see other private
+        # repos). Passwords resolve from the environment when mvn runs;
+        # no secret is ever written to disk.
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <servers>
+              <server>
+                <id>github</id>
+                <username>${env.GITHUB_ACTOR}</username>
+                <password>${env.GITHUB_TOKEN}</password>
+              </server>
+              <server>
+                <id>github-hooji</id>
+                <username>hooji</username>
+                <password>${env.PACKAGES_READ_TOKEN}</password>
+              </server>
+            </servers>
+          </settings>
+          EOF
+
       - name: Resolve tag and version
         id: ver
         run: |
@@ -45,12 +73,19 @@ jobs:
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "Building release ${TAG} (version ${TAG#v})"
 
-      - name: Build SDK and fat jar
+      - name: Build SDK, publish to GitHub Packages, and build fat jar
         # The release version comes entirely from the tag via the CI-friendly
         # -Drevision override; no POM mutation needed. flatten-maven-plugin
-        # resolves ${revision} in the installed POMs.
+        # resolves ${revision} in the installed/deployed POMs. `deploy`
+        # uploads the parent POM and the claude-code-sdk jar (+ attached
+        # artifacts) to this repo's GitHub Packages Maven registry (see
+        # <distributionManagement> in pom.xml). The fat jar stays a
+        # GitHub-Release-page asset only — fat jars are not registry
+        # artifacts.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./mvnw -B -ntp -pl claude-code-sdk -am -DskipTests -Drevision=${{ steps.ver.outputs.version }} install
+          ./mvnw -B -ntp -pl claude-code-sdk -am -DskipTests -Drevision=${{ steps.ver.outputs.version }} deploy
           (cd fatjar && ../mvnw -B -ntp -DskipTests -Drevision=${{ steps.ver.outputs.version }} package)
 
       - name: Stage release artifacts
@@ -77,3 +112,50 @@ jobs:
           Assets:
           - \`claude-code-sdk-all-${V}.jar\` — fat jar (SDK + all runtime dependencies + NOP SLF4J binding).
           - \`claude-code-sdk-all-${V}-sources.jar\` — library sources (for IDE attachment)."
+
+      - name: Prune old package versions
+        # GitHub Packages bills PRIVATE-repo storage (hourly, against the
+        # plan's quota). The GitHub Release — whose asset storage is free —
+        # is the permanent archive of every version, and any tag rebuilds
+        # the same artifacts, so the Maven registry only keeps the very
+        # newest release of each package; older versions are deleted here
+        # after every successful release.
+        #
+        # Consequence, accepted by design: only the very newest release
+        # resolves from the registry — a consumer pinning anything older
+        # gets a resolution failure (historical jars stay on the Releases
+        # page).
+        #
+        # KEEP >= 1 always, which also avoids the API's refusal to delete
+        # a package's last remaining version. Uses the workflow's own
+        # GITHUB_TOKEN (packages: write): it may delete versions of
+        # packages scoped to this repository. Best-effort throughout: a
+        # prune failure must never fail a release. per_page=100 with no
+        # pagination is deliberate — pruning runs every release, so the
+        # backlog can never grow past one page.
+        # CHANGE WHEN CLONING: the Maven package names in PACKAGES
+        # (<groupId>.<artifactId>, one per deployed module).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          KEEP: "1"
+          PACKAGES: >-
+            org.springaicommunity.claude-agent-sdk-parent
+            org.springaicommunity.claude-code-sdk
+        run: |
+          set -euo pipefail
+          for pkg in ${PACKAGES}; do
+            ids="$(gh api "/users/${OWNER}/packages/maven/${pkg}/versions?per_page=100" \
+                     --jq 'sort_by(.created_at) | reverse | .['"${KEEP}"':] | .[].id' 2>/dev/null || true)"
+            if [ -z "${ids}" ]; then
+              echo "${pkg}: nothing to prune"
+              continue
+            fi
+            for id in ${ids}; do
+              if gh api -X DELETE "/users/${OWNER}/packages/maven/${pkg}/versions/${id}" >/dev/null 2>&1; then
+                echo "pruned: ${pkg} version id ${id}"
+              else
+                echo "::warning::could not prune ${pkg} version id ${id} — continuing"
+              fi
+            done
+          done
