@@ -101,7 +101,6 @@
 
     <modules>
         <module>claude-code-sdk</module>
-        <module>claude-cloud-sessions</module>
     </modules>
 
     <dependencyManagement>

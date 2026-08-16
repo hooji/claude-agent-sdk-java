@@ -1,17 +1,11 @@
-# claude-cloud-sessions
+# Cloud sessions (`ClaudeCloudSessions`)
 
-> **Moved into the main SDK:** this class now ships as part of `claude-code-sdk`
-> (and the `claude-code-sdk-all` fat jar) as
-> `org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions`.
-> Use that copy; this standalone module is kept only until the integrated
-> release is confirmed, then it will be removed. Everything below still
-> applies — only the package name differs.
-
-A single-file library for listing **Claude Code cloud sessions**
-(the sessions shown by `claude --teleport` and at claude.ai/code) and reading
-their live status — including the `worker_status` idle signal the teleport
-picker doesn't display. Useful for monitoring many parallel cloud sessions and
-getting notified the moment one goes idle or needs an approval.
+`org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions` lists
+**Claude Code cloud sessions** (the sessions shown by `claude --teleport` and at
+claude.ai/code) and reads their live status — including the `worker_status` idle
+signal the teleport picker doesn't display. Useful for monitoring many parallel
+cloud sessions and getting notified the moment one goes idle or needs an
+approval.
 
 It calls the same endpoint the Claude Code CLI itself uses:
 
@@ -34,8 +28,8 @@ anthropic-version: 2023-06-01
 ## Usage
 
 ```java
-import org.springaicommunity.claude.cloudsessions.ClaudeCloudSessions;
-import org.springaicommunity.claude.cloudsessions.ClaudeCloudSessions.CloudSession;
+import org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions;
+import org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions.CloudSession;
 
 // Uses this machine's Claude Code login (Keychain on macOS,
 // ~/.claude/.credentials.json on Linux) and fetches ALL pages:
@@ -126,3 +120,19 @@ config.outcomes.0.git_info.ref  -> null        (JSON null renders as "null")
 `parsePage(String json)` is also public, so you can parse captured responses
 (fixtures, logs) without any network access; it exposes the page's
 `nextCursor` and `resumeToken` too.
+
+## Relabeling sessions (tags / title)
+
+Sessions can be relabeled the way the Claude apps do it, via
+`PUT /v1/code/sessions/<id>`:
+
+```java
+// Add / remove tags incrementally (the apps' color labels are ordinary tags
+// with the "color:" prefix — see ClaudeCloudSessions.COLOR_TAG_PREFIX):
+ClaudeCloudSessions.updateSessionTags(token, sessionId,
+        List.of("my-project", "color:blue"),   // add
+        List.of("color:red"));                 // remove
+
+// Rename a session:
+ClaudeCloudSessions.updateSessionTitle(token, sessionId, "Nightly refactor run");
+```

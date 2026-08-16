@@ -48,7 +48,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Fat-jar releases** | A `claude-code-sdk-all` uber jar (SDK + all runtime dependencies) published as a GitHub Release on every `v*` tag. | [docs/releasing.md](docs/releasing.md) |
 | **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
 | **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
-| **Cloud sessions monitor** (`ClaudeCloudSessions`) | Lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers (macOS Keychain / Linux `~/.claude/.credentials.json`). Part of `claude-code-sdk` (and the fat jar); usage docs in [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md). | [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md) |
+| **Cloud sessions monitor** (`ClaudeCloudSessions`) | Lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers (macOS Keychain / Linux `~/.claude/.credentials.json`). Part of `claude-code-sdk` (and the fat jar); usage docs in [docs/cloud-sessions.md](docs/cloud-sessions.md). | [docs/cloud-sessions.md](docs/cloud-sessions.md) |
 | **CLI version management** (`ClaudeCliVersions`) | Read the installed CLI version (`claude --version`), discover the newest version on the `stable` / `latest` / `next` release channels (npm dist-tags), compare them with `checkForUpdate()`, and trigger `claude update` — with an honest `wasUpdated()` before/after signal instead of the CLI's unreliable exit code. | [CLI Version Management](#cli-version-management) |
 | **Local sessions listing** (`ClaudeLocalSessions`) | The local counterpart of `ClaudeCloudSessions`: lists the sessions the CLI itself knows about on this machine via `claude agents --json [--all]` — interactive terminals and background agents, live and completed — as a fully-typed `LocalSession` record with a flattened raw-value map that preserves future wire fields. | [Local CLI Sessions](#local-cli-sessions) |
 
@@ -373,7 +373,7 @@ Full details — storage layout, fork recovery, replay semantics, cloning vs `--
 
 ## Local CLI Sessions
 
-`ClaudeLocalSessions` lists the sessions the Claude CLI itself knows about on this machine — the CLI's *agent view* (`claude agents --json`), covering interactive terminals and background agents. It is the local counterpart of the [cloud sessions monitor](claude-cloud-sessions/README.md) (`ClaudeCloudSessions`, in the same `sessions` package):
+`ClaudeLocalSessions` lists the sessions the Claude CLI itself knows about on this machine — the CLI's *agent view* (`claude agents --json`), covering interactive terminals and background agents. It is the local counterpart of the [cloud sessions monitor](docs/cloud-sessions.md) (`ClaudeCloudSessions`, in the same `sessions` package):
 
 ```java
 import org.springaicommunity.claude.agent.sdk.sessions.ClaudeLocalSessions;
@@ -486,6 +486,7 @@ claude-agent-sdk-java/
 ├── docs/                     # Deep-dive documentation
 │   ├── options.md            # Every configuration option, explained
 │   ├── session-history.md    # Transcripts, fork recovery, replay, cloning
+│   ├── cloud-sessions.md     # Cloud sessions monitor (ClaudeCloudSessions)
 │   ├── partial-streaming.md  # Token-level streaming
 │   └── releasing.md          # Release workflows and artifacts
 └── examples/
