@@ -31,10 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Unit tests for {@link ClaudeCloudSessions#parsePage(String)} and
- * {@link CloudSession}. The fixture mirrors the shape of
- * {@code GET /v1/code/sessions} responses (the endpoint behind
- * {@code claude --teleport}).
+ * Unit tests for {@link ClaudeCloudSessions#parsePage(String)} and {@link CloudSession}.
+ * The fixture mirrors the shape of {@code GET /v1/code/sessions} responses (the endpoint
+ * behind {@code claude --teleport}).
  */
 class ClaudeCloudSessionsTest {
 
@@ -129,8 +128,7 @@ class ClaudeCloudSessionsTest {
 			assertThat(s.config().effortLevel()).isEqualTo("max");
 			assertThat(s.config().origin()).isEqualTo("desktop_app");
 			assertThat(s.config().sources()).hasSize(1);
-			assertThat(s.config().sources().get(0).url())
-				.isEqualTo("https://github.com/hooji/claude-agent-sdk-java");
+			assertThat(s.config().sources().get(0).url()).isEqualTo("https://github.com/hooji/claude-agent-sdk-java");
 			assertThat(s.config().outcomes()).hasSize(1);
 			assertThat(s.config().outcomes().get(0).gitInfo().repo()).isEqualTo("hooji/claude-agent-sdk-java");
 			assertThat(s.config().outcomes().get(0).gitInfo().branches()).containsExactly("claude/some-branch");
@@ -140,11 +138,9 @@ class ClaudeCloudSessionsTest {
 		void parsesExternalMetadata() throws IOException {
 			CloudSession s = parseOne(SESSION);
 			assertThat(s.externalMetadata().containerCcVersion()).isEqualTo("2.1.210");
-			assertThat(s.externalMetadata().currentBranches())
-				.containsEntry("/home/user/repo", "claude/some-branch");
+			assertThat(s.externalMetadata().currentBranches()).containsEntry("/home/user/repo", "claude/some-branch");
 			assertThat(s.externalMetadata().postTurnSummary().statusCategory()).isEqualTo("review_ready");
-			assertThat(s.externalMetadata().postTurnSummary().statusDetail())
-				.isEqualTo("PR opened, awaiting review");
+			assertThat(s.externalMetadata().postTurnSummary().statusDetail()).isEqualTo("PR opened, awaiting review");
 		}
 
 		@Test
@@ -166,8 +162,7 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void exposesCursorAndResumeToken() throws IOException {
-			Page page = ClaudeCloudSessions
-				.parsePage("{\"data\":[],\"next_cursor\":\"abc\",\"resume_token\":\"tok\"}");
+			Page page = ClaudeCloudSessions.parsePage("{\"data\":[],\"next_cursor\":\"abc\",\"resume_token\":\"tok\"}");
 			assertThat(page.sessions()).isEmpty();
 			assertThat(page.nextCursor()).isEqualTo("abc");
 			assertThat(page.resumeToken()).isEqualTo("tok");
@@ -216,8 +211,7 @@ class ClaudeCloudSessionsTest {
 					  "gone": null
 					}""";
 			CloudSession s = parseOne(withFutureFields);
-			assertThat(s.allValues())
-				.containsEntry("brand_new_field", "kept")
+			assertThat(s.allValues()).containsEntry("brand_new_field", "kept")
 				.containsEntry("nested.deep.value", "42")
 				.containsEntry("list.0", "x")
 				.containsEntry("list.1", "y")
@@ -229,8 +223,7 @@ class ClaudeCloudSessionsTest {
 		@Test
 		void allValuesMirrorsTypedFields() throws IOException {
 			CloudSession s = parseOne(SESSION);
-			assertThat(s.allValues())
-				.containsEntry("id", "cse_0123456789abcdef")
+			assertThat(s.allValues()).containsEntry("id", "cse_0123456789abcdef")
 				.containsEntry("worker_status", "idle")
 				.containsEntry("config.sources.0.url", "https://github.com/hooji/claude-agent-sdk-java")
 				.containsEntry("external_metadata.post_turn_summary.status_category", "review_ready")
@@ -241,8 +234,7 @@ class ClaudeCloudSessionsTest {
 		@Test
 		void allValuesIsUnmodifiable() throws IOException {
 			CloudSession s = parseOne(SESSION);
-			assertThatThrownBy(() -> s.allValues().put("x", "y"))
-				.isInstanceOf(UnsupportedOperationException.class);
+			assertThatThrownBy(() -> s.allValues().put("x", "y")).isInstanceOf(UnsupportedOperationException.class);
 		}
 
 	}
@@ -252,8 +244,136 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void rejectsMalformedJson() {
-			assertThatThrownBy(() -> ClaudeCloudSessions.parsePage("not json at all"))
-				.isInstanceOf(IOException.class);
+			assertThatThrownBy(() -> ClaudeCloudSessions.parsePage("not json at all")).isInstanceOf(IOException.class);
+		}
+
+	}
+
+	/** Parsing a single-session document ({@code GET /v1/code/sessions/<id>}). */
+	@Nested
+	class SingleSession {
+
+		@Test
+		void parsesBareSessionObject() throws IOException {
+			CloudSession s = ClaudeCloudSessions.parseSessionJson(SESSION);
+			assertThat(s.id()).isEqualTo("cse_0123456789abcdef");
+			assertThat(s.isIdle()).isTrue();
+		}
+
+		@Test
+		void parsesDataWrappedSessionObject() throws IOException {
+			CloudSession s = ClaudeCloudSessions.parseSessionJson("{\"data\":" + SESSION + "}");
+			assertThat(s.id()).isEqualTo("cse_0123456789abcdef");
+		}
+
+		@Test
+		void blankSessionIdIsRejectedBeforeAnyIo() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.getCloudSession("tok", " "))
+				.isInstanceOf(IllegalArgumentException.class);
+		}
+
+	}
+
+	/**
+	 * The stored-credential introspection: {@code parseCredentials} feeds
+	 * {@code getClaudeOAuthCredentials*}, {@code isOAuthTokenValid} and
+	 * {@code oauthTokenTimeRemaining}.
+	 */
+	@Nested
+	class OAuthCredentialsIntrospection {
+
+		private String credentialsJson(long expiresAtMillis) {
+			return """
+					{"claudeAiOauth": {
+					  "accessToken": "sk-ant-oat01-abc",
+					  "refreshToken": "sk-ant-ort01-def",
+					  "expiresAt": %d,
+					  "scopes": ["user:inference", "user:profile"],
+					  "subscriptionType": "max"
+					}}""".formatted(expiresAtMillis);
+		}
+
+		@Test
+		void parsesAllFields() throws IOException {
+			long expiry = Instant.now().plusSeconds(3600).toEpochMilli();
+			var creds = ClaudeCloudSessions.parseCredentials(credentialsJson(expiry), "test");
+			assertThat(creds.accessToken()).isEqualTo("sk-ant-oat01-abc");
+			assertThat(creds.expiresAt()).isEqualTo(Instant.ofEpochMilli(expiry));
+			assertThat(creds.scopes()).containsExactly("user:inference", "user:profile");
+			assertThat(creds.subscriptionType()).isEqualTo("max");
+		}
+
+		@Test
+		void validTokenReportsPositiveTimeRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials(credentialsJson(Instant.now().plusSeconds(3600).toEpochMilli()), "test");
+			assertThat(creds.isValid()).isTrue();
+			assertThat(creds.timeRemaining()).isPresent();
+			assertThat(creds.timeRemaining().get()).isPositive();
+			assertThat(creds.timeRemaining().get()).isLessThanOrEqualTo(java.time.Duration.ofHours(1));
+		}
+
+		@Test
+		void expiredTokenIsInvalidWithNegativeTimeRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials(credentialsJson(Instant.now().minusSeconds(600).toEpochMilli()), "test");
+			assertThat(creds.isValid()).isFalse();
+			assertThat(creds.timeRemaining()).isPresent();
+			assertThat(creds.timeRemaining().get()).isNegative();
+		}
+
+		@Test
+		void toleratesEpochSecondsExpiry() throws IOException {
+			long seconds = Instant.now().plusSeconds(3600).getEpochSecond();
+			var creds = ClaudeCloudSessions.parseCredentials(credentialsJson(seconds), "test");
+			assertThat(creds.expiresAt()).isEqualTo(Instant.ofEpochMilli(seconds * 1000));
+			assertThat(creds.isValid()).isTrue();
+		}
+
+		@Test
+		void missingExpiryCountsAsValidWithUnknownRemaining() throws IOException {
+			var creds = ClaudeCloudSessions
+				.parseCredentials("{\"claudeAiOauth\": {\"accessToken\": \"sk-ant-oat01-abc\"}}", "test");
+			assertThat(creds.isValid()).isTrue();
+			assertThat(creds.timeRemaining()).isEmpty();
+			assertThat(creds.scopes()).isEmpty();
+			assertThat(creds.subscriptionType()).isNull();
+		}
+
+		@Test
+		void missingAccessTokenIsRejected() {
+			assertThatThrownBy(() -> ClaudeCloudSessions.parseCredentials("{\"claudeAiOauth\": {}}", "test"))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("accessToken");
+		}
+
+		@Test
+		void readsCredentialsFromConfigDir(@org.junit.jupiter.api.io.TempDir java.nio.file.Path configDir)
+				throws IOException {
+			long expiry = Instant.now().plusSeconds(1800).toEpochMilli();
+			java.nio.file.Files.writeString(configDir.resolve(".credentials.json"), credentialsJson(expiry));
+			var creds = ClaudeCloudSessions.getClaudeOAuthCredentialsLinux(configDir);
+			assertThat(creds.isValid()).isTrue();
+			assertThat(ClaudeCloudSessions.getClaudeOAuthTokenLinux(configDir)).isEqualTo("sk-ant-oat01-abc");
+		}
+
+		@Test
+		void tokenGetterStillThrowsOnExpiredCredential(@org.junit.jupiter.api.io.TempDir java.nio.file.Path configDir)
+				throws IOException {
+			java.nio.file.Files.writeString(configDir.resolve(".credentials.json"),
+					credentialsJson(Instant.now().minusSeconds(60).toEpochMilli()));
+			// The introspection API returns the expired credential...
+			assertThat(ClaudeCloudSessions.getClaudeOAuthCredentialsLinux(configDir).isValid()).isFalse();
+			// ...while the historical token getter keeps its throw-on-expired contract.
+			assertThatThrownBy(() -> ClaudeCloudSessions.getClaudeOAuthTokenLinux(configDir))
+				.isInstanceOf(IOException.class)
+				.hasMessageContaining("expired");
+		}
+
+		@Test
+		void refreshInvocationIsMinimalAndHeadless() {
+			assertThat(ClaudeCloudSessions.refreshInvocationCommand("/usr/bin/claude"))
+				.containsExactly("/usr/bin/claude", "-p", "ok", "--max-turns", "1", "--model", "haiku");
 		}
 
 	}
@@ -271,7 +391,8 @@ class ClaudeCloudSessionsTest {
 				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("group-a", "color:blue"), null));
 			assertThat(body.path("add_tags").get(0).asText()).isEqualTo("group-a");
 			assertThat(body.path("add_tags").get(1).asText()).isEqualTo("color:blue");
-			assertThat(body.has("remove_tags")).isFalse(); // empty list omitted, like the CLI
+			assertThat(body.has("remove_tags")).isFalse(); // empty list omitted, like the
+															// CLI
 		}
 
 		@Test
@@ -284,8 +405,7 @@ class ClaudeCloudSessionsTest {
 
 		@Test
 		void tagsBodyWithBoth() throws IOException {
-			JsonNode body = new ObjectMapper()
-				.readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("a"), List.of("b")));
+			JsonNode body = new ObjectMapper().readTree(ClaudeCloudSessions.tagsUpdateBody(List.of("a"), List.of("b")));
 			assertThat(body.path("add_tags").size()).isEqualTo(1);
 			assertThat(body.path("remove_tags").size()).isEqualTo(1);
 		}

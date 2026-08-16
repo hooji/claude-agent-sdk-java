@@ -20,8 +20,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Server-sent event carrying rate limit status. Emitted by the Claude CLI during
- * streaming sessions. Contains quota information and reset timing that callers can use for
- * proactive back-off.
+ * streaming sessions. Contains quota information and reset timing that callers can use
+ * for proactive back-off.
  */
 public record RateLimitEvent(@JsonProperty("type") String type,
 

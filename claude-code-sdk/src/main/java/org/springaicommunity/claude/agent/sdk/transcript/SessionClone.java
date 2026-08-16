@@ -28,18 +28,22 @@ import java.util.UUID;
  * branches the conversation but leaves a single shared working directory (so a fork's
  * conversation can become inconsistent with the files on disk).
  *
- * <p>A clone is more like a UTM VM snapshot copy: it duplicates the session's entire working
- * directory tree into a fresh directory and re-homes a copy of the conversation transcript
- * (new session id, paths rewritten from the source to the target directory) so the new
- * session resumes against its own files. The AI's persistent memory folder for the working
- * directory and the session's task list travel too. The original and the clone then move
- * forward on independent timelines without affecting each other.
+ * <p>
+ * A clone is more like a UTM VM snapshot copy: it duplicates the session's entire working
+ * directory tree into a fresh directory and re-homes a copy of the conversation
+ * transcript (new session id, paths rewritten from the source to the target directory) so
+ * the new session resumes against its own files. The AI's persistent memory folder for
+ * the working directory and the session's task list travel too. The original and the
+ * clone then move forward on independent timelines without affecting each other.
  *
- * <p>To capture a session as a portable, single-file archive instead (with metadata, and the
+ * <p>
+ * To capture a session as a portable, single-file archive instead (with metadata, and the
  * option to keep the original id on restore), see {@link SessionArchive}.
  *
- * <p><b>Important:</b> for this to remain consistent, clones must be created through this API
- * and the resulting session resumed in its target directory — not forked again via the CLI.
+ * <p>
+ * <b>Important:</b> for this to remain consistent, clones must be created through this
+ * API and the resulting session resumed in its target directory — not forked again via
+ * the CLI.
  */
 public final class SessionClone {
 
@@ -49,7 +53,8 @@ public final class SessionClone {
 	/**
 	 * The result of a clone.
 	 *
-	 * @param sessionId the new (clone) session id, to resume against {@link #workingDirectory()}
+	 * @param sessionId the new (clone) session id, to resume against
+	 * {@link #workingDirectory()}
 	 * @param workingDirectory the clone's working directory (a copy of the source tree)
 	 * @param transcriptPath the re-homed transcript file
 	 */
@@ -66,11 +71,12 @@ public final class SessionClone {
 	}
 
 	/**
-	 * Clones {@code sessionId} into {@code targetDir}, with an explicit {@code projectsRoot}
-	 * (the directory that holds the per-working-directory transcript folders).
+	 * Clones {@code sessionId} into {@code targetDir}, with an explicit
+	 * {@code projectsRoot} (the directory that holds the per-working-directory transcript
+	 * folders).
 	 * @return the new session's id, working directory, and transcript path
-	 * @throws IllegalArgumentException if the source session/transcript can't be found, the
-	 * sanitization scheme doesn't match, or the target is unusable
+	 * @throws IllegalArgumentException if the source session/transcript can't be found,
+	 * the sanitization scheme doesn't match, or the target is unusable
 	 */
 	public static Result clone(String sessionId, String sourceDir, String targetDir, String projectsRoot)
 			throws IOException {
@@ -103,13 +109,15 @@ public final class SessionClone {
 		Path targetTranscript = targetProjectsDir.resolve(newId + ".jsonl");
 		Transcripts.rehomeTranscript(srcTranscript, targetTranscript.toString(), srcReal, targetReal, newId);
 
-		// 3. Copy externalized tool-results (the <session-id>/ subdir next to the transcript), if any.
+		// 3. Copy externalized tool-results (the <session-id>/ subdir next to the
+		// transcript), if any.
 		Path srcAux = Path.of(srcTranscript).getParent().resolve(sessionId);
 		if (Files.isDirectory(srcAux)) {
 			Transcripts.copyTree(srcAux.toString(), targetProjectsDir.resolve(newId).toString());
 		}
 
-		// 4. Carry the SDK metadata sidecar across under the new id. The map is opaque (no paths
+		// 4. Carry the SDK metadata sidecar across under the new id. The map is opaque
+		// (no paths
 		// to re-home), so it is copied verbatim.
 		Path srcMeta = Path.of(SessionMetadata.fileFor(srcTranscript));
 		if (Files.isRegularFile(srcMeta)) {
@@ -117,8 +125,10 @@ public final class SessionClone {
 					StandardCopyOption.REPLACE_EXISTING);
 		}
 
-		// 5. Copy the AI's persistent memory folder (the memory/ subdir next to the transcripts,
-		// shared per working directory), re-homing path references in its text files, so the
+		// 5. Copy the AI's persistent memory folder (the memory/ subdir next to the
+		// transcripts,
+		// shared per working directory), re-homing path references in its text files, so
+		// the
 		// clone keeps what the AI has learned about the project.
 		Path srcMemory = Path.of(srcTranscript).getParent().resolve(Transcripts.MEMORY_DIR);
 		if (Files.isDirectory(srcMemory)) {
@@ -126,20 +136,24 @@ public final class SessionClone {
 					targetProjectsDir.resolve(Transcripts.MEMORY_DIR).toString(), srcReal, targetReal);
 		}
 
-		// 6. Copy the session's task list (the TODO tool's records under the tasks root, keyed
-		// by session id) across under the new id, re-homing path references. The CLI's .lock
+		// 6. Copy the session's task list (the TODO tool's records under the tasks root,
+		// keyed
+		// by session id) across under the new id, re-homing path references. The CLI's
+		// .lock
 		// stays behind — it mirrors the live app's lock state, not the tasks.
 		Path srcTasks = Transcripts.tasksDirFor(projectsRoot, sessionId);
 		if (srcTasks != null && Files.isDirectory(srcTasks)) {
-			Transcripts.copyTreeRehoming(srcTasks.toString(),
-					Transcripts.tasksDirFor(projectsRoot, newId).toString(), srcReal, targetReal,
-					p -> !Transcripts.isLockFile(p));
+			Transcripts.copyTreeRehoming(srcTasks.toString(), Transcripts.tasksDirFor(projectsRoot, newId).toString(),
+					srcReal, targetReal, p -> !Transcripts.isLockFile(p));
 		}
 
 		return new Result(newId, targetDir, targetTranscript.toString());
 	}
 
-	/** Claude names a working dir's transcript folder by replacing non-alphanumerics with '-'. */
+	/**
+	 * Claude names a working dir's transcript folder by replacing non-alphanumerics with
+	 * '-'.
+	 */
 	static String sanitize(String realPath) {
 		return TranscriptDirectory.sanitize(realPath);
 	}

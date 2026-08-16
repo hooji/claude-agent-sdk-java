@@ -35,15 +35,12 @@ class SessionIdCaptureTest {
 	static final String SID = "16d8b472-d367-4b87-aff9-cb8ca7a2b20e";
 
 	static ParsedMessage initMessage() {
-		return ParsedMessage.RegularMessage.of(
-				SystemMessage.of("init", Map.of("session_id", SID, "cwd", "/tmp/somewhere")));
+		return ParsedMessage.RegularMessage
+			.of(SystemMessage.of("init", Map.of("session_id", SID, "cwd", "/tmp/somewhere")));
 	}
 
 	static ParsedMessage resultMessage(String sessionId) {
-		return ParsedMessage.RegularMessage.of(ResultMessage.builder()
-			.subtype("success")
-			.sessionId(sessionId)
-			.build());
+		return ParsedMessage.RegularMessage.of(ResultMessage.builder().subtype("success").sessionId(sessionId).build());
 	}
 
 	@Test

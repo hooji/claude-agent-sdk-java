@@ -210,8 +210,8 @@ public final class ClaudeCliVersions {
 				.readOutput(true)
 				.execute();
 			if (result.getExitValue() != 0) {
-				throw new ClaudeSDKException("'" + claudePath + " --version' exited with code "
-						+ result.getExitValue() + ": " + truncate(result.outputUTF8(), 300));
+				throw new ClaudeSDKException("'" + claudePath + " --version' exited with code " + result.getExitValue()
+						+ ": " + truncate(result.outputUTF8(), 300));
 			}
 			return parseVersionOutput(result.outputUTF8());
 		}
@@ -272,8 +272,8 @@ public final class ClaudeCliVersions {
 			throw new ClaudeSDKException("Interrupted while querying " + url, e);
 		}
 		catch (Exception e) {
-			throw new ClaudeSDKException("Failed to query latest Claude CLI version from " + url + ": "
-					+ e.getMessage(), e);
+			throw new ClaudeSDKException(
+					"Failed to query latest Claude CLI version from " + url + ": " + e.getMessage(), e);
 		}
 	}
 
@@ -419,8 +419,8 @@ public final class ClaudeCliVersions {
 		}
 		String version = root.path(channel.tag()).asText("");
 		if (version.isBlank()) {
-			throw new ClaudeSDKException("Channel '" + channel.tag() + "' not present in dist-tags response: "
-					+ truncate(json, 300));
+			throw new ClaudeSDKException(
+					"Channel '" + channel.tag() + "' not present in dist-tags response: " + truncate(json, 300));
 		}
 		return version;
 	}

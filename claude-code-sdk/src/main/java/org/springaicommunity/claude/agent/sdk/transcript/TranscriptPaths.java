@@ -24,10 +24,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Extracts on-disk file paths referenced anywhere within a transcript line's JSON. Claude
- * Code externalizes file content rather than inlining it — edited/referenced files appear as
- * absolute paths under {@code filePath} / {@code filename} / {@code file_path} fields (in
- * {@code attachment} lines, tool results, and file operations) — so the bytes can be read
- * straight from disk without loading them into memory.
+ * Code externalizes file content rather than inlining it — edited/referenced files appear
+ * as absolute paths under {@code filePath} / {@code filename} / {@code file_path} fields
+ * (in {@code attachment} lines, tool results, and file operations) — so the bytes can be
+ * read straight from disk without loading them into memory.
  */
 final class TranscriptPaths {
 
@@ -70,4 +70,5 @@ final class TranscriptPaths {
 		return s != null && !s.isBlank()
 				&& (s.startsWith("/") || s.startsWith("~") || s.matches("^[A-Za-z]:[\\\\/].*"));
 	}
+
 }

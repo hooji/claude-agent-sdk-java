@@ -41,33 +41,36 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Packages a single Claude Code session — its transcript, its SDK metadata, <em>and</em> the
- * entire working directory tree it ran in — into one portable, compressed archive file, so a
- * session and all its associated files can be treated as a single "thing" that is saved, copied,
- * and moved around.
+ * Packages a single Claude Code session — its transcript, its SDK metadata, <em>and</em>
+ * the entire working directory tree it ran in — into one portable, compressed archive
+ * file, so a session and all its associated files can be treated as a single "thing" that
+ * is saved, copied, and moved around.
  *
- * <p>This is the full-snapshot counterpart to {@link SessionClone}: where a clone always forks
- * to a <em>new</em> id in a sibling directory, an archive is a relocatable backup that, on
- * {@link #restore restore}, defaults to keeping the original session id (so the restored copy
- * <em>is</em> the same session) with the option to mint a new one.
+ * <p>
+ * This is the full-snapshot counterpart to {@link SessionClone}: where a clone always
+ * forks to a <em>new</em> id in a sibling directory, an archive is a relocatable backup
+ * that, on {@link #restore restore}, defaults to keeping the original session id (so the
+ * restored copy <em>is</em> the same session) with the option to mint a new one.
  *
- * <p><b>Metadata.</b> An archive carries the session's metadata by embedding its {@code <id>.meta}
- * sidecar verbatim (see {@link SessionMetadata}); there is no separate name/description — store
- * those as ordinary keys in the {@link Session#metaData() metadata map}. Archiving copies the
- * {@code .meta} bytes as-is (no deserialization, so the value classes are not needed to
- * <em>create</em> an archive); {@link #readMetaData} and {@link #restore} do read it back.
+ * <p>
+ * <b>Metadata.</b> An archive carries the session's metadata by embedding its
+ * {@code <id>.meta} sidecar verbatim (see {@link SessionMetadata}); there is no separate
+ * name/description — store those as ordinary keys in the {@link Session#metaData()
+ * metadata map}. Archiving copies the {@code .meta} bytes as-is (no deserialization, so
+ * the value classes are not needed to <em>create</em> an archive); {@link #readMetaData}
+ * and {@link #restore} do read it back.
  *
- * <p><b>Scope.</b> An archive contains only the <em>specified</em> session's transcript (a fork
- * already embeds its ancestors' history, so it stays self-contained) — never the sibling
- * sessions that happen to share the working directory's transcript folder. The one exception is
- * the AI's persistent <em>memory</em> folder ({@code memory/} next to the transcripts), which is
- * per-working-directory rather than per-session: what the AI has learned about the project is
- * part of its primed state, so it travels with the archive. The session's <em>task list</em>
- * (the TODO tool's records, kept per session under the config dir's {@code tasks/} root) also
- * travels.
+ * <p>
+ * <b>Scope.</b> An archive contains only the <em>specified</em> session's transcript (a
+ * fork already embeds its ancestors' history, so it stays self-contained) — never the
+ * sibling sessions that happen to share the working directory's transcript folder. The
+ * one exception is the AI's persistent <em>memory</em> folder ({@code memory/} next to
+ * the transcripts), which is per-working-directory rather than per-session: what the AI
+ * has learned about the project is part of its primed state, so it travels with the
+ * archive. The session's <em>task list</em> (the TODO tool's records, kept per session
+ * under the config dir's {@code tasks/} root) also travels.
  *
- * <h2>Archive layout</h2> A ZIP (no external dependency) with:
- * <pre>
+ * <h2>Archive layout</h2> A ZIP (no external dependency) with: <pre>
  *   manifest.json                  provenance (see {@link Manifest})
  *   metadata.ser                   the session's {@code .meta} bytes (Java-serialized map; omitted if no .meta)
  *   transcript/&lt;sessionId&gt;.jsonl   the one session's transcript (verbatim)
@@ -78,11 +81,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
  *   workdir/...                    the entire working-directory tree
  * </pre>
  *
- * <p><b>Caveats.</b> The working tree is captured in full — it may be large and may contain
- * secrets (e.g. {@code .env}, credentials, {@code .git}); an archive is a single easily-shared
- * file. Metadata values are stored with Java serialization, so reading them back ({@link
- * #readMetaData}, {@link #restore} followed by a load) requires the same classes on the
- * classpath; treat an untrusted archive with the same caution as any Java deserialization.
+ * <p>
+ * <b>Caveats.</b> The working tree is captured in full — it may be large and may contain
+ * secrets (e.g. {@code .env}, credentials, {@code .git}); an archive is a single
+ * easily-shared file. Metadata values are stored with Java serialization, so reading them
+ * back ({@link #readMetaData}, {@link #restore} followed by a load) requires the same
+ * classes on the classpath; treat an untrusted archive with the same caution as any Java
+ * deserialization.
  */
 public final class SessionArchive {
 
@@ -108,21 +113,22 @@ public final class SessionArchive {
 
 	/**
 	 * The provenance recorded in an archive, readable without extracting it (see
-	 * {@link #readManifest}). The metadata itself is <em>not</em> included here — it requires the
-	 * value classes on the classpath and is read separately via {@link #readMetaData}.
+	 * {@link #readManifest}). The metadata itself is <em>not</em> included here — it
+	 * requires the value classes on the classpath and is read separately via
+	 * {@link #readMetaData}.
 	 *
 	 * @param schemaVersion the archive format version
 	 * @param sessionId the original (archived) session id
-	 * @param originalWorkingDir the absolute working directory the session ran in (the key used
-	 * to rewrite paths on restore)
+	 * @param originalWorkingDir the absolute working directory the session ran in (the
+	 * key used to rewrite paths on restore)
 	 * @param createdAt when the archive was written ({@code null} if unparseable)
 	 * @param messageCount number of conversation messages in the transcript
-	 * @param hasMetaData whether the archive carries an embedded {@code .meta} (which may itself
-	 * be an explicitly-empty map)
-	 * @param hasMemory whether the archive carries the working directory's AI-memory folder
-	 * ({@code false} for archives written before memory capture existed)
-	 * @param hasTasks whether the archive carries the session's task list ({@code false} for
-	 * archives written before task capture existed)
+	 * @param hasMetaData whether the archive carries an embedded {@code .meta} (which may
+	 * itself be an explicitly-empty map)
+	 * @param hasMemory whether the archive carries the working directory's AI-memory
+	 * folder ({@code false} for archives written before memory capture existed)
+	 * @param hasTasks whether the archive carries the session's task list ({@code false}
+	 * for archives written before task capture existed)
 	 */
 	public record Manifest(int schemaVersion, String sessionId, String originalWorkingDir, Instant createdAt,
 			int messageCount, boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
@@ -131,7 +137,8 @@ public final class SessionArchive {
 	/**
 	 * The result of a {@link #restore}.
 	 *
-	 * @param sessionId the restored session id (the original, unless a new one was requested)
+	 * @param sessionId the restored session id (the original, unless a new one was
+	 * requested)
 	 * @param workingDirectory the directory the working tree was restored into
 	 * @param transcriptPath the re-homed transcript file (under the projects root)
 	 * @param manifest the archive's manifest
@@ -140,8 +147,8 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Archives {@code sessionId} (which ran in {@code workingDir}) to {@code targetArchive},
-	 * using the default Claude projects root.
+	 * Archives {@code sessionId} (which ran in {@code workingDir}) to
+	 * {@code targetArchive}, using the default Claude projects root.
 	 * @return the archive file path actually written
 	 */
 	public static String create(String sessionId, String workingDir, String targetArchive) throws IOException {
@@ -149,13 +156,14 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Archives {@code sessionId} (which ran in {@code workingDir}) to {@code targetArchive}, with
-	 * an explicit {@code projectsRoot}. The session's metadata is picked up from its
-	 * {@code <id>.meta} sidecar, and the working directory's AI-memory folder from the
-	 * {@code memory/} folder next to the transcript (each omitted if there is none).
+	 * Archives {@code sessionId} (which ran in {@code workingDir}) to
+	 * {@code targetArchive}, with an explicit {@code projectsRoot}. The session's
+	 * metadata is picked up from its {@code <id>.meta} sidecar, and the working
+	 * directory's AI-memory folder from the {@code memory/} folder next to the transcript
+	 * (each omitted if there is none).
 	 * @return the archive file path actually written (absolute, normalized)
-	 * @throws IllegalArgumentException if the working dir/transcript can't be found or the target
-	 * archive would sit inside the working tree being captured
+	 * @throws IllegalArgumentException if the working dir/transcript can't be found or
+	 * the target archive would sit inside the working tree being captured
 	 */
 	public static String create(String sessionId, String workingDir, String targetArchive, String projectsRoot)
 			throws IOException {
@@ -167,7 +175,8 @@ public final class SessionArchive {
 		String transcript = Transcripts.locateTranscript(projectsRoot, srcReal, sessionId);
 
 		// The archive must live outside the tree we're about to walk, or it would try to
-		// capture itself mid-write. Compare symlink-resolved paths on both sides — srcReal is
+		// capture itself mid-write. Compare symlink-resolved paths on both sides —
+		// srcReal is
 		// already resolved, and e.g. macOS temp dirs live under /var -> /private/var.
 		Path archiveAbs = Path.of(targetArchive).toAbsolutePath().normalize();
 		if (canonicalizeExistingPrefix(archiveAbs).startsWith(srcReal)) {
@@ -177,8 +186,10 @@ public final class SessionArchive {
 			Files.createDirectories(archiveAbs.getParent());
 		}
 
-		// The metadata sidecar travels verbatim — copied as bytes, never deserialized here, so
-		// creating an archive does not require the metadata value classes on the classpath.
+		// The metadata sidecar travels verbatim — copied as bytes, never deserialized
+		// here, so
+		// creating an archive does not require the metadata value classes on the
+		// classpath.
 		Path metaFile = Path.of(SessionMetadata.fileFor(transcript));
 		byte[] metaBytes = Files.isRegularFile(metaFile) ? Files.readAllBytes(metaFile) : null;
 
@@ -187,14 +198,16 @@ public final class SessionArchive {
 		Path memoryDir = Path.of(transcript).getParent().resolve(Transcripts.MEMORY_DIR);
 		boolean hasMemory = Transcripts.isNonEmptyDir(memoryDir.toString());
 
-		// The session's task list lives under the tasks root (a sibling of the projects root),
-		// keyed by session id. The CLI's .lock is excluded — it mirrors the live app's lock
+		// The session's task list lives under the tasks root (a sibling of the projects
+		// root),
+		// keyed by session id. The CLI's .lock is excluded — it mirrors the live app's
+		// lock
 		// state, not the tasks — and doesn't count toward hasTasks.
 		Path tasksDir = Transcripts.tasksDirFor(projectsRoot, sessionId);
 		boolean hasTasks = Transcripts.hasTaskRecords(tasksDir);
 
-		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null,
-				hasMemory, hasTasks);
+		ObjectNode manifest = buildManifest(sessionId, srcReal, countMessages(transcript), metaBytes != null, hasMemory,
+				hasTasks);
 
 		try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archiveAbs))) {
 			writeBytes(zip, MANIFEST, MAPPER.writerWithDefaultPrettyPrinter().writeValueAsBytes(manifest));
@@ -218,16 +231,16 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Restores an archive into the fresh working directory {@code targetWorkingDir}, keeping the
-	 * original session id, using the default projects root.
+	 * Restores an archive into the fresh working directory {@code targetWorkingDir},
+	 * keeping the original session id, using the default projects root.
 	 */
 	public static RestoreResult restore(String archive, String targetWorkingDir) throws IOException {
 		return restore(archive, targetWorkingDir, false, TranscriptDirectory.projectsRoot());
 	}
 
 	/**
-	 * Restores an archive into {@code targetWorkingDir}, optionally minting a new session id
-	 * (a "fork on restore"), using the default projects root.
+	 * Restores an archive into {@code targetWorkingDir}, optionally minting a new session
+	 * id (a "fork on restore"), using the default projects root.
 	 */
 	public static RestoreResult restore(String archive, String targetWorkingDir, boolean newSessionId)
 			throws IOException {
@@ -235,19 +248,19 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Restores an archive into {@code targetWorkingDir}: inflates the working tree, then re-homes
-	 * the transcript under {@code projectsRoot} with every path reference rewritten from the
-	 * archived working directory to {@code targetWorkingDir}, materializes the session's
-	 * {@code <id>.meta} sidecar (named for the restore id) when the archive carries metadata,
-	 * inflates the archived AI-memory folder into the target's projects folder (path references
-	 * in its text files rewritten the same way; a same-named pre-existing memory file at the
-	 * destination is overwritten), and inflates the archived task list under the tasks root
-	 * keyed by the restore id.
+	 * Restores an archive into {@code targetWorkingDir}: inflates the working tree, then
+	 * re-homes the transcript under {@code projectsRoot} with every path reference
+	 * rewritten from the archived working directory to {@code targetWorkingDir},
+	 * materializes the session's {@code <id>.meta} sidecar (named for the restore id)
+	 * when the archive carries metadata, inflates the archived AI-memory folder into the
+	 * target's projects folder (path references in its text files rewritten the same way;
+	 * a same-named pre-existing memory file at the destination is overwritten), and
+	 * inflates the archived task list under the tasks root keyed by the restore id.
 	 * @param newSessionId {@code false} keeps the archived id (a faithful restore/move);
 	 * {@code true} assigns a fresh id, forking an independent line on restore
 	 * @return the restored id, working directory, transcript path, and the manifest
-	 * @throws IllegalArgumentException if the target is non-empty, or (when keeping the id) a
-	 * transcript with that id already exists at the destination
+	 * @throws IllegalArgumentException if the target is non-empty, or (when keeping the
+	 * id) a transcript with that id already exists at the destination
 	 */
 	public static RestoreResult restore(String archive, String targetWorkingDir, boolean newSessionId,
 			String projectsRoot) throws IOException {
@@ -294,8 +307,10 @@ public final class SessionArchive {
 					continue;
 				}
 				if (name.equals(METADATA)) {
-					// The metadata map is opaque (no paths to re-home); copy it verbatim under the
-					// restore id, so a subsequent load picks it up as this session's metaData.
+					// The metadata map is opaque (no paths to re-home); copy it verbatim
+					// under the
+					// restore id, so a subsequent load picks it up as this session's
+					// metaData.
 					try (InputStream in = zip.getInputStream(e)) {
 						Files.write(targetMeta, in.readAllBytes());
 					}
@@ -311,18 +326,24 @@ public final class SessionArchive {
 					extract(zip, e, safeResolve(auxDir, name.substring(auxPrefix.length())));
 				}
 				else if (name.startsWith(MEMORY_PREFIX)) {
-					// Memory files are free-form text the AI wrote; re-home any absolute path
-					// references so they stay accurate for the restored working directory.
+					// Memory files are free-form text the AI wrote; re-home any absolute
+					// path
+					// references so they stay accurate for the restored working
+					// directory.
 					String rel = name.substring(MEMORY_PREFIX.length());
 					if (!rel.isEmpty()) {
 						extractRehomed(zip, e, safeResolve(memoryDir, rel), fromPath, toPath);
 					}
 				}
 				else if (name.startsWith(TASKS_PREFIX)) {
-					// Task records land under the tasks root keyed by the restore id (so a
-					// fork-on-restore re-keys them, like the .meta sidecar); their JSON is
-					// free-form text that may reference workdir paths, so re-home it too. The
-					// CLI's .lock is skipped even if an older archive carried one — restoring
+					// Task records land under the tasks root keyed by the restore id (so
+					// a
+					// fork-on-restore re-keys them, like the .meta sidecar); their JSON
+					// is
+					// free-form text that may reference workdir paths, so re-home it too.
+					// The
+					// CLI's .lock is skipped even if an older archive carried one —
+					// restoring
 					// it could make the new session refuse to update its task list.
 					String rel = name.substring(TASKS_PREFIX.length());
 					if (!rel.isEmpty() && tasksDir != null && !Transcripts.isLockFile(Path.of(rel))) {
@@ -341,8 +362,8 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Reads an archive's {@link Manifest} (provenance) without extracting it or touching its
-	 * serialized metadata.
+	 * Reads an archive's {@link Manifest} (provenance) without extracting it or touching
+	 * its serialized metadata.
 	 */
 	public static Manifest readManifest(String archive) throws IOException {
 		try (ZipFile zip = new ZipFile(archive)) {
@@ -362,8 +383,8 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Deserializes the archive's embedded session metadata (empty if it has none). Requires the
-	 * metadata value classes on the classpath.
+	 * Deserializes the archive's embedded session metadata (empty if it has none).
+	 * Requires the metadata value classes on the classpath.
 	 * @throws IOException if the archive can't be read, or a value class is missing
 	 */
 	public static Map<String, Serializable> readMetaData(String archive) throws IOException {
@@ -378,7 +399,8 @@ public final class SessionArchive {
 		}
 	}
 
-	// --- internals -----------------------------------------------------------------------
+	// --- internals
+	// -----------------------------------------------------------------------
 
 	private static ObjectNode buildManifest(String sessionId, String originalWorkingDir, int messageCount,
 			boolean hasMetaData, boolean hasMemory, boolean hasTasks) {
@@ -394,7 +416,10 @@ public final class SessionArchive {
 		return m;
 	}
 
-	/** Counts conversation messages (uuid-bearing lines), the same notion as {@code Session.messages()}. */
+	/**
+	 * Counts conversation messages (uuid-bearing lines), the same notion as
+	 * {@code Session.messages()}.
+	 */
 	private static int countMessages(String transcript) throws IOException {
 		int n = 0;
 		for (String line : Files.readAllLines(Path.of(transcript))) {
@@ -413,12 +438,18 @@ public final class SessionArchive {
 		return n;
 	}
 
-	/** Adds every file under {@code root} to the zip, prefixing entry names with {@code entryPrefix}. */
+	/**
+	 * Adds every file under {@code root} to the zip, prefixing entry names with
+	 * {@code entryPrefix}.
+	 */
 	private static void addTree(ZipOutputStream zip, String root, String entryPrefix) throws IOException {
 		addTree(zip, root, entryPrefix, p -> true);
 	}
 
-	/** As {@link #addTree(ZipOutputStream, String, String)} but adding only entries {@code include} accepts. */
+	/**
+	 * As {@link #addTree(ZipOutputStream, String, String)} but adding only entries
+	 * {@code include} accepts.
+	 */
 	private static void addTree(ZipOutputStream zip, String root, String entryPrefix, Predicate<Path> include)
 			throws IOException {
 		Path rootPath = Path.of(root);
@@ -461,7 +492,10 @@ public final class SessionArchive {
 		}
 	}
 
-	/** As {@link #extract} but re-homing path references in text content (binary copied verbatim). */
+	/**
+	 * As {@link #extract} but re-homing path references in text content (binary copied
+	 * verbatim).
+	 */
 	private static void extractRehomed(ZipFile zip, ZipEntry e, String dst, String fromPath, String toPath)
 			throws IOException {
 		Path dstPath = Path.of(dst);
@@ -478,9 +512,10 @@ public final class SessionArchive {
 	}
 
 	/**
-	 * Resolves symlinks in the deepest <em>existing</em> ancestor of {@code p} and re-appends the
-	 * not-yet-existing remainder, so a containment check against an already-resolved path compares
-	 * like with like (the archive file itself does not exist yet when the check runs).
+	 * Resolves symlinks in the deepest <em>existing</em> ancestor of {@code p} and
+	 * re-appends the not-yet-existing remainder, so a containment check against an
+	 * already-resolved path compares like with like (the archive file itself does not
+	 * exist yet when the check runs).
 	 */
 	private static Path canonicalizeExistingPrefix(Path p) {
 		Path existing = p;
@@ -502,7 +537,10 @@ public final class SessionArchive {
 		}
 	}
 
-	/** Resolves {@code rel} under {@code base}, refusing entries that escape it (zip-slip guard). */
+	/**
+	 * Resolves {@code rel} under {@code base}, refusing entries that escape it (zip-slip
+	 * guard).
+	 */
 	private static String safeResolve(String base, String rel) {
 		Path baseNorm = Path.of(base).normalize();
 		Path resolved = baseNorm.resolve(rel).normalize();

@@ -41,8 +41,8 @@ public class MessageParser {
 	/**
 	 * Bookkeeping line types the CLI writes into transcript {@code .jsonl} files (session
 	 * labels, queue/mode records, attachments, ...). They are not conversation messages —
-	 * the transcript loader deliberately keeps them as raw entries — so hitting one here is
-	 * expected and logged quietly, unlike a genuinely unknown type.
+	 * the transcript loader deliberately keeps them as raw entries — so hitting one here
+	 * is expected and logged quietly, unlike a genuinely unknown type.
 	 */
 	private static final Set<String> TRANSCRIPT_BOOKKEEPING_TYPES = Set.of("summary", "attachment", "mode",
 			"queue-operation", "last-prompt", "relocated", "tag", "custom-title", "ai-title", "agent-name",
@@ -87,11 +87,9 @@ public class MessageParser {
 					logger.debug("Transcript bookkeeping line '{}' — not a conversation message, skipping.", type);
 				}
 				else {
-					logger.error(
-							"Unrecognized message type '{}' — skipping. "
-									+ "This may indicate the Claude CLI has added a new message type. "
-									+ "Raw JSON: {}",
-							type, node);
+					logger.error("Unrecognized message type '{}' — skipping. "
+							+ "This may indicate the Claude CLI has added a new message type. " + "Raw JSON: {}", type,
+							node);
 				}
 				yield null;
 			}
@@ -100,8 +98,8 @@ public class MessageParser {
 
 	/**
 	 * Parses a partial streaming event (emitted when --include-partial-messages is set).
-	 * Extracts the inner Anthropic streaming event and, when present, the incremental text
-	 * or thinking delta so consumers can stream tokens as they are generated.
+	 * Extracts the inner Anthropic streaming event and, when present, the incremental
+	 * text or thinking delta so consumers can stream tokens as they are generated.
 	 */
 	@SuppressWarnings("unchecked")
 	private StreamEvent parseStreamEvent(JsonNode node) {

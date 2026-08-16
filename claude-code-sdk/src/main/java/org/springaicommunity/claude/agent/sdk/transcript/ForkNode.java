@@ -28,7 +28,9 @@ import java.util.List;
  */
 public record ForkNode(Session session, int forkPointInParent, List<ForkNode> children) {
 
-	/** @return this node's session id. */
+	/**
+	 * @return this node's session id.
+	 */
 	public String sessionId() {
 		return session.sessionId();
 	}

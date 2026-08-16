@@ -32,11 +32,10 @@ import java.util.Map;
  */
 public record CLIOptions(String model, String systemPrompt, Integer maxTokens, Integer maxThinkingTokens,
 		Duration timeout, List<String> tools, List<String> allowedTools, List<String> disallowedTools,
-		PermissionMode permissionMode, boolean interactive, List<String> settingSources,
-		String agents, boolean forkSession, boolean includePartialMessages, boolean forwardSubagentText,
-		String autocompact, Map<String, Object> jsonSchema,
-		Map<String, McpServerConfig> mcpServers, Integer maxTurns, Double maxBudgetUsd, String fallbackModel,
-		String appendSystemPrompt,
+		PermissionMode permissionMode, boolean interactive, List<String> settingSources, String agents,
+		boolean forkSession, boolean includePartialMessages, boolean forwardSubagentText, String autocompact,
+		Map<String, Object> jsonSchema, Map<String, McpServerConfig> mcpServers, Integer maxTurns, Double maxBudgetUsd,
+		String fallbackModel, String appendSystemPrompt,
 		// Session resume options
 		boolean continueConversation, String resume,
 		// Advanced options for full Python SDK parity
@@ -103,9 +102,9 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 	public static CLIOptions defaultOptions() {
 		return new CLIOptions(null, null, null, null, Duration.ofMinutes(2), null, List.of(), List.of(),
-				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, List.of(), null, false, false, false, null,
-				null, Map.of(), null, null, null, null, false, null, List.of(), null, null, Map.of(), List.of(),
-				Map.of(), null, null, null, null);
+				PermissionMode.DANGEROUSLY_SKIP_PERMISSIONS, false, List.of(), null, false, false, false, null, null,
+				Map.of(), null, null, null, null, false, null, List.of(), null, null, Map.of(), List.of(), Map.of(),
+				null, null, null, null);
 	}
 
 	// Convenience getters
@@ -401,8 +400,8 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 
 		/**
 		 * Forwards subagent text and thinking blocks as assistant/user messages with
-		 * {@code parent_tool_use_id} set (maps to {@code --forward-subagent-text}; the CLI
-		 * supports it only in the stream-json mode this transport always uses).
+		 * {@code parent_tool_use_id} set (maps to {@code --forward-subagent-text}; the
+		 * CLI supports it only in the stream-json mode this transport always uses).
 		 * @param forwardSubagentText true to forward subagent output into the stream
 		 * @return this builder
 		 */
@@ -655,23 +654,52 @@ public record CLIOptions(String model, String systemPrompt, Integer maxTokens, I
 		 * one {@code *.request.json} / {@code *.response.json} file pair per API call
 		 * into it (untruncated), and the emitted OTel log event carries a
 		 * {@code body_ref} pointing at those files instead of inlining the body. This
-		 * method takes the plain directory path and prepends the required
-		 * {@code file:} prefix for you.
+		 * method takes the plain directory path and prepends the required {@code file:}
+		 * prefix for you.
 		 * <p>
 		 * Raw body logging only happens if telemetry is on and a logs exporter is
 		 * configured, so this also sets {@code CLAUDE_CODE_ENABLE_TELEMETRY=1} and
 		 * {@code OTEL_LOGS_EXPORTER=console} (which needs no collector or network
-		 * endpoint - the files are what you actually want, and this exporter setting
-		 * just needs to be valid, not point anywhere useful). Use {@code env(...)}
-		 * afterward to override either if you already export telemetry elsewhere.
-		 * @param directory path to a directory the CLI will write raw API request/response
-		 * JSON files into (created by the CLI if it doesn't already exist)
+		 * endpoint - the files are what you actually want, and this exporter setting just
+		 * needs to be valid, not point anywhere useful). Use {@code env(...)} afterward
+		 * to override either if you already export telemetry elsewhere.
+		 * @param directory path to a directory the CLI will write raw API
+		 * request/response JSON files into (created by the CLI if it doesn't already
+		 * exist)
 		 * @return this builder
 		 */
 		public Builder otelLogRawApiBodiesDirectory(String directory) {
 			env("CLAUDE_CODE_ENABLE_TELEMETRY", "1");
 			env("OTEL_LOGS_EXPORTER", "console");
 			return env("OTEL_LOG_RAW_API_BODIES", "file:" + directory);
+		}
+
+		/**
+		 * Authenticates the CLI process with a long-lived Claude OAuth token, by setting
+		 * the {@code CLAUDE_CODE_OAUTH_TOKEN} environment variable for the subprocess
+		 * (the documented headless-authentication mechanism; create such a token with
+		 * {@code claude setup-token}).
+		 * <p>
+		 * These tokens are <b>inference-only</b> by design ({@code user:inference} /
+		 * {@code user:profile} scopes): they run models fine but are rejected by the
+		 * cloud-sessions API (see
+		 * {@code org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions},
+		 * which needs the short-lived interactive login token instead). Note the CLI
+		 * prefers {@code ANTHROPIC_API_KEY} over an OAuth token when both reach the
+		 * process, and an explicit {@code env("CLAUDE_CODE_OAUTH_TOKEN", ...)} set
+		 * afterward overrides this value (last write wins).
+		 * @param oauthToken the long-lived OAuth token; {@code null} is a no-op so the
+		 * value can be plumbed through unconditionally
+		 * @return this builder
+		 */
+		public Builder oauthToken(String oauthToken) {
+			if (oauthToken == null) {
+				return this;
+			}
+			if (oauthToken.isBlank()) {
+				throw new IllegalArgumentException("oauthToken must be non-blank (or null to skip)");
+			}
+			return env("CLAUDE_CODE_OAUTH_TOKEN", oauthToken);
 		}
 
 		/**

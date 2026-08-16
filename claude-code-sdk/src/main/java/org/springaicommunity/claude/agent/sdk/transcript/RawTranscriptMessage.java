@@ -22,15 +22,18 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 
 /**
- * A passthrough {@link Message} wrapping a transcript line that is not a conversation message
- * (for example {@code attachment}, {@code queue-operation}, {@code mode}, {@code last-prompt},
- * {@code file-history-snapshot}).
+ * A passthrough {@link Message} wrapping a transcript line that is not a conversation
+ * message (for example {@code attachment}, {@code queue-operation}, {@code mode},
+ * {@code last-prompt}, {@code file-history-snapshot}).
  *
- * <p>{@link TranscriptDirectory#replay(String)} emits one of these for every non-conversation
- * line so that nothing is dropped — the consumer gets the line's original {@link #getType()}
- * and full {@link #raw()} JSON and can choose to surface or hide each event in its UI.
+ * <p>
+ * {@link TranscriptDirectory#replay(String)} emits one of these for every
+ * non-conversation line so that nothing is dropped — the consumer gets the line's
+ * original {@link #getType()} and full {@link #raw()} JSON and can choose to surface or
+ * hide each event in its UI.
  *
- * @param rawType the line's original {@code type} (the value returned by {@link #getType()})
+ * @param rawType the line's original {@code type} (the value returned by
+ * {@link #getType()})
  * @param uuid the line's uuid, or {@code null}
  * @param raw the complete original JSON for the line
  */

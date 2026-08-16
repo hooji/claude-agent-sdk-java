@@ -102,20 +102,27 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			// CLI 2.1.x flags that may warrant SDK support later — not yet evaluated
 			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections",
 
-			// Accessibility flag: only affects interactive TUI rendering (flat text, no borders or
+			// Accessibility flag: only affects interactive TUI rendering (flat text, no
+			// borders or
 			// animations) — a no-op for the SDK's --print/stream-json output.
 			"ax-screen-reader",
 
 			// Background agents: `claude --bg` dispatches a detached session and returns
-			// immediately, monitored via `claude agents`. This is a separate dispatch-and-poll
-			// execution model rather than a streaming-client flag, so it warrants a dedicated SDK
+			// immediately, monitored via `claude agents`. This is a separate
+			// dispatch-and-poll
+			// execution model rather than a streaming-client flag, so it warrants a
+			// dedicated SDK
 			// API instead of a CLIOptions toggle — tracked separately.
 			"bg", "background",
 
-			// Cloud-session launchers: --cloud creates/attaches a claude.ai/code cloud session,
-			// --environment targets a self-hosted cloud environment, --teleport resumes a cloud
-			// session locally. All three replace the local stdio session this transport manages
-			// with a cloud-backed workflow, so they are out of scope for CLIOptions; cloud
+			// Cloud-session launchers: --cloud creates/attaches a claude.ai/code cloud
+			// session,
+			// --environment targets a self-hosted cloud environment, --teleport resumes a
+			// cloud
+			// session locally. All three replace the local stdio session this transport
+			// manages
+			// with a cloud-backed workflow, so they are out of scope for CLIOptions;
+			// cloud
 			// sessions are covered by the separate ClaudeCloudSessions monitor instead.
 			"cloud", "environment", "teleport",
 

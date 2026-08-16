@@ -24,10 +24,11 @@ import org.springaicommunity.claude.agent.sdk.types.Message;
 /**
  * One line of an on-disk session transcript, retained losslessly.
  *
- * <p>Every line from the {@code .jsonl} file becomes a {@code TranscriptEntry}, in file
+ * <p>
+ * Every line from the {@code .jsonl} file becomes a {@code TranscriptEntry}, in file
  * order. The structural fields ({@code uuid}, {@code parentUuid}, {@code type}, …) are
- * lifted out for convenience, the parsed SDK {@link Message} is provided when the line is a
- * conversation message, and the complete original JSON is kept in {@link #raw()} so the
+ * lifted out for convenience, the parsed SDK {@link Message} is provided when the line is
+ * a conversation message, and the complete original JSON is kept in {@link #raw()} so the
  * transcript can be regenerated JSON-equivalently with no loss.
  *
  * @param lineNo 1-based line number within the source file
@@ -44,12 +45,16 @@ import org.springaicommunity.claude.agent.sdk.types.Message;
 public record TranscriptEntry(int lineNo, String uuid, String parentUuid, String type, boolean isSidechain,
 		String agentId, String timestamp, Message message, JsonNode raw) {
 
-	/** @return true if this entry carries a uuid (the lineage-bearing entries forks copy). */
+	/**
+	 * @return true if this entry carries a uuid (the lineage-bearing entries forks copy).
+	 */
 	public boolean hasUuid() {
 		return uuid != null;
 	}
 
-	/** @return true if this line parsed into a typed conversation {@link Message}. */
+	/**
+	 * @return true if this line parsed into a typed conversation {@link Message}.
+	 */
 	public boolean hasMessage() {
 		return message != null;
 	}

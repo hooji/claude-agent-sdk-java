@@ -19,10 +19,10 @@ package org.springaicommunity.claude.agent.sdk.transcript;
 import org.springaicommunity.claude.agent.sdk.types.Message;
 
 /**
- * A synthetic terminal message emitted at the end of {@link TranscriptDirectory#replay(String)},
- * signalling that the replayed history is complete. Transcripts have no per-turn result
- * message, so this is the consumer's end-of-stream signal. Its {@link #getType()} is
- * {@code "history_end"}.
+ * A synthetic terminal message emitted at the end of
+ * {@link TranscriptDirectory#replay(String)}, signalling that the replayed history is
+ * complete. Transcripts have no per-turn result message, so this is the consumer's
+ * end-of-stream signal. Its {@link #getType()} is {@code "history_end"}.
  *
  * @param sessionId the session whose history was replayed
  * @param messageCount the number of history messages that preceded this marker

@@ -48,8 +48,10 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Fat-jar releases** | A `claude-code-sdk-all` uber jar (SDK + all runtime dependencies) published as a GitHub Release on every `v*` tag. | [docs/releasing.md](docs/releasing.md) |
 | **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
 | **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
-| **Cloud sessions monitor** (`ClaudeCloudSessions`) | Lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers (macOS Keychain / Linux `~/.claude/.credentials.json`). Part of `claude-code-sdk` (and the fat jar); usage docs in [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md). | [claude-cloud-sessions/README.md](claude-cloud-sessions/README.md) |
+| **Cloud sessions monitor** (`ClaudeCloudSessions`) | Lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus single-session fetch (`getCloudSession(id)`), a polling **turn-end watch** (`watchForTurnEnd`, callback when a session goes idle / needs you; ≥15s good-citizen polling), cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers: read (macOS Keychain / Linux `~/.claude/.credentials.json`), introspect (`isOAuthTokenValid()` / `oauthTokenTimeRemaining()` / `getClaudeOAuthCredentials()`), and refresh via the CLI (`refreshOAuthToken()`). Part of `claude-code-sdk` (and the fat jar). | [docs/cloud-sessions.md](docs/cloud-sessions.md) |
 | **CLI version management** (`ClaudeCliVersions`) | Read the installed CLI version (`claude --version`), discover the newest version on the `stable` / `latest` / `next` release channels (npm dist-tags), compare them with `checkForUpdate()`, and trigger `claude update` — with an honest `wasUpdated()` before/after signal instead of the CLI's unreliable exit code. | [CLI Version Management](#cli-version-management) |
+| **CLI installation** (`ClaudeCliInstaller`) | Detect whether the Claude CLI is present (`isInstalled()` / `installedPath()`), and install it from Anthropic's official native-installer script (`claude.ai/install.sh` / `.ps1`; `stable` / `latest` / pinned version) when it isn't — `ensureInstalled()` in one call, with the result verified by re-discovery instead of trusting the script's exit code. | [CLI Installation](#cli-installation) |
+| **OAuth token injection** (`oauthToken(...)`) | First-class client/builder option for headless auth: injects a `claude setup-token` long-lived token as `CLAUDE_CODE_OAUTH_TOKEN` into the CLI subprocess. | [docs/options.md](docs/options.md) |
 | **Local sessions listing** (`ClaudeLocalSessions`) | The local counterpart of `ClaudeCloudSessions`: lists the sessions the CLI itself knows about on this machine via `claude agents --json [--all]` — interactive terminals and background agents, live and completed — as a fully-typed `LocalSession` record with a flattened raw-value map that preserves future wire fields. | [Local CLI Sessions](#local-cli-sessions) |
 
 ## Requirements
@@ -373,7 +375,7 @@ Full details — storage layout, fork recovery, replay semantics, cloning vs `--
 
 ## Local CLI Sessions
 
-`ClaudeLocalSessions` lists the sessions the Claude CLI itself knows about on this machine — the CLI's *agent view* (`claude agents --json`), covering interactive terminals and background agents. It is the local counterpart of the [cloud sessions monitor](claude-cloud-sessions/README.md) (`ClaudeCloudSessions`, in the same `sessions` package):
+`ClaudeLocalSessions` lists the sessions the Claude CLI itself knows about on this machine — the CLI's *agent view* (`claude agents --json`), covering interactive terminals and background agents. It is the local counterpart of the [cloud sessions monitor](docs/cloud-sessions.md) (`ClaudeCloudSessions`, in the same `sessions` package):
 
 ```java
 import org.springaicommunity.claude.agent.sdk.sessions.ClaudeLocalSessions;
@@ -461,6 +463,30 @@ Notes:
 
 ---
 
+## CLI Installation
+
+`ClaudeCliInstaller` closes the loop that `ClaudeCliVersions` opens: not just "is an update available?", but "is the CLI even here — and if not, put it here":
+
+```java
+import org.springaicommunity.claude.agent.sdk.config.ClaudeCliInstaller;
+
+if (!ClaudeCliInstaller.isInstalled()) {                  // probes PATH + common locations
+    var result = ClaudeCliInstaller.install();            // official claude.ai/install.sh, latest channel
+    System.out.println("Installed " + result.version() + " at " + result.path());
+}
+
+// or in one call — no-op when already present:
+String claudePath = ClaudeCliInstaller.ensureInstalled().path();
+```
+
+Notes:
+
+- **Install source**: Anthropic's official native-installer script (`https://claude.ai/install.sh`, `install.ps1` on Windows), run with a `stable` / `latest` / `"2.1.233"` target — the same channel names as `ClaudeCliVersions.UpdateChannel`. Override the download base with `-Dclaude.cli.installBaseUrl=...` for a corporate mirror.
+- **Verified outcome**: after the script runs, the SDK re-runs CLI discovery and reads the version back — `InstallResult.path()`/`.version()` always describe a CLI that actually executes (the same don't-trust-the-exit-code stance as `ClaudeCliVersions.update()`).
+- The native installer lands in `~/.local/bin/claude`, which discovery already probes — so a fresh install is usable immediately, no `PATH` change needed in the running JVM.
+
+---
+
 ## Project Structure
 
 ```
@@ -486,6 +512,7 @@ claude-agent-sdk-java/
 ├── docs/                     # Deep-dive documentation
 │   ├── options.md            # Every configuration option, explained
 │   ├── session-history.md    # Transcripts, fork recovery, replay, cloning
+│   ├── cloud-sessions.md     # Cloud sessions monitor (ClaudeCloudSessions)
 │   ├── partial-streaming.md  # Token-level streaming
 │   └── releasing.md          # Release workflows and artifacts
 └── examples/

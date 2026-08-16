@@ -32,10 +32,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests the official Claude Code session labels — the {@code {"type":"tag"}} /
- * {@code {"type":"custom-title"}} / {@code {"type":"ai-title"}} transcript lines behind the
- * desktop app's custom groups and renames — as read and written by {@link Session} /
- * {@link SessionLabels}. The line format and semantics (append-only, last line wins, empty
- * value clears) mirror the CLI's own {@code tagSession} / {@code renameSession}.
+ * {@code {"type":"custom-title"}} / {@code {"type":"ai-title"}} transcript lines behind
+ * the desktop app's custom groups and renames — as read and written by {@link Session} /
+ * {@link SessionLabels}. The line format and semantics (append-only, last line wins,
+ * empty value clears) mirror the CLI's own {@code tagSession} / {@code renameSession}.
  */
 class SessionLabelsTest {
 
@@ -43,15 +43,19 @@ class SessionLabelsTest {
 
 	static final ObjectMapper MAPPER = new ObjectMapper();
 
-	/** Writes a minimal transcript with the given extra lines appended after two messages. */
+	/**
+	 * Writes a minimal transcript with the given extra lines appended after two messages.
+	 */
 	Path writeTranscript(Path dir, String sessionId, String... extraLines) throws IOException {
 		Path file = dir.resolve(sessionId + ".jsonl");
 		StringBuilder sb = new StringBuilder();
-		sb.append("{\"type\":\"user\",\"uuid\":\"u1\",\"sessionId\":\"").append(sessionId)
-				.append("\",\"cwd\":\"/work/proj\",\"timestamp\":\"2026-08-01T10:00:00Z\",")
-				.append("\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n");
-		sb.append("{\"type\":\"assistant\",\"uuid\":\"u2\",\"parentUuid\":\"u1\",\"sessionId\":\"").append(sessionId)
-				.append("\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}]}}\n");
+		sb.append("{\"type\":\"user\",\"uuid\":\"u1\",\"sessionId\":\"")
+			.append(sessionId)
+			.append("\",\"cwd\":\"/work/proj\",\"timestamp\":\"2026-08-01T10:00:00Z\",")
+			.append("\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n");
+		sb.append("{\"type\":\"assistant\",\"uuid\":\"u2\",\"parentUuid\":\"u1\",\"sessionId\":\"")
+			.append(sessionId)
+			.append("\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"hi\"}]}}\n");
 		for (String line : extraLines) {
 			sb.append(line).append("\n");
 		}
@@ -79,7 +83,8 @@ class SessionLabelsTest {
 			assertThat(s.tag()).isEqualTo("my-group");
 			assertThat(s.customTitle()).isEqualTo("My run");
 			assertThat(s.aiTitle()).isEqualTo("Auto title");
-			assertThat(s.displayTitle()).isEqualTo("My run"); // custom wins over generated
+			assertThat(s.displayTitle()).isEqualTo("My run"); // custom wins over
+																// generated
 		}
 
 		@Test
@@ -107,8 +112,7 @@ class SessionLabelsTest {
 
 		@Test
 		void displayTitleFallsBackToAiTitle(@TempDir Path dir) throws IOException {
-			writeTranscript(dir, ID,
-					"{\"type\":\"ai-title\",\"aiTitle\":\"Auto title\",\"sessionId\":\"" + ID + "\"}");
+			writeTranscript(dir, ID, "{\"type\":\"ai-title\",\"aiTitle\":\"Auto title\",\"sessionId\":\"" + ID + "\"}");
 			assertThat(load(dir, false).displayTitle()).isEqualTo("Auto title");
 		}
 
@@ -220,7 +224,7 @@ class SessionLabelsTest {
 			writeTranscript(dir, ID);
 			Session s = load(dir, false);
 			assertThatThrownBy(() -> s.setTag(null)).isInstanceOf(IllegalArgumentException.class)
-					.hasMessageContaining("clearTag");
+				.hasMessageContaining("clearTag");
 			assertThatThrownBy(() -> s.setTag("   ")).isInstanceOf(IllegalArgumentException.class);
 			assertThatThrownBy(() -> s.setCustomTitle(null)).isInstanceOf(IllegalArgumentException.class);
 			assertThatThrownBy(() -> s.setCustomTitle(" ")).isInstanceOf(IllegalArgumentException.class);
@@ -228,14 +232,14 @@ class SessionLabelsTest {
 
 		@Test
 		void refusesMissingOrEmptyTranscript(@TempDir Path dir) throws IOException {
-			// Mirrors the CLI, which refuses to label a session whose transcript is gone or
+			// Mirrors the CLI, which refuses to label a session whose transcript is gone
+			// or
 			// empty (it would not be a resumable session).
 			Path file = writeTranscript(dir, ID);
 			Session s = load(dir, false);
 
 			Files.writeString(file, "");
-			assertThatThrownBy(() -> s.setTag("x")).isInstanceOf(IOException.class)
-					.hasMessageContaining("non-empty");
+			assertThatThrownBy(() -> s.setTag("x")).isInstanceOf(IOException.class).hasMessageContaining("non-empty");
 
 			Files.delete(file);
 			assertThatThrownBy(() -> s.setTag("x")).isInstanceOf(IOException.class);
@@ -246,8 +250,7 @@ class SessionLabelsTest {
 		void labelsSurviveRegenerate(@TempDir Path dir, @TempDir Path dest) throws IOException {
 			writeTranscript(dir, ID, tagLine("my-group"));
 			TranscriptDirectory.load(dir.toString()).regenerate(dest.toString());
-			assertThat(TranscriptDirectory.load(dest.toString()).byId(ID).orElseThrow().tag())
-					.isEqualTo("my-group");
+			assertThat(TranscriptDirectory.load(dest.toString()).byId(ID).orElseThrow().tag()).isEqualTo("my-group");
 		}
 
 	}

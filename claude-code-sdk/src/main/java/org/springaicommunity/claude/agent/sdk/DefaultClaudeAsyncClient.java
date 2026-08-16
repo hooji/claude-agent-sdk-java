@@ -945,7 +945,8 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 
 		@Override
 		public Flux<String> partialTextStream() {
-			// Lazy: send action triggers on subscribe, then stream incremental text deltas
+			// Lazy: send action triggers on subscribe, then stream incremental text
+			// deltas
 			// (requires the client to be built with includePartialMessages(true)).
 			return sendAction.get()
 				.thenMany(receiveResponse())

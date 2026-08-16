@@ -66,7 +66,8 @@ class TranscriptAwareIT extends ClaudeCliTestBase {
 				.as("transcript file for session %s under %s", sessionId, expectedDir)
 				.isTrue();
 
-			// ...and is retrievable directly from the client, containing this conversation.
+			// ...and is retrievable directly from the client, containing this
+			// conversation.
 			Session session = awaitSession(client);
 			assertThat(session.sessionId()).isEqualTo(sessionId);
 			assertThat(session.messages()).isNotEmpty();

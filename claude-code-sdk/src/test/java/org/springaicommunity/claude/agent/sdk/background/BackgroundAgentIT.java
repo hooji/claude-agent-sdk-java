@@ -30,16 +30,16 @@ import org.springaicommunity.claude.agent.sdk.transcript.SessionArchive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Live end-to-end test of the background-agent lifecycle against a real {@code claude} CLI:
- * dispatch &rarr; await &rarr; retrieve (via the transcript toolkit) &rarr; archive. Runs only
- * when API credentials are available (see {@link ClaudeCliTestBase}).
+ * Live end-to-end test of the background-agent lifecycle against a real {@code claude}
+ * CLI: dispatch &rarr; await &rarr; retrieve (via the transcript toolkit) &rarr; archive.
+ * Runs only when API credentials are available (see {@link ClaudeCliTestBase}).
  */
 class BackgroundAgentIT extends ClaudeCliTestBase {
 
 	@Test
 	void dispatchAwaitRetrieveAndArchive(@TempDir Path workDir, @TempDir Path archiveDir) throws Exception {
-		BackgroundAgent agent = BackgroundAgents.dispatch("Reply with exactly the single word: pong. Do not use any tools.",
-				workDir.toString());
+		BackgroundAgent agent = BackgroundAgents
+			.dispatch("Reply with exactly the single word: pong. Do not use any tools.", workDir.toString());
 
 		assertThat(agent.id()).as("short id parsed/resolved").isNotBlank();
 		assertThat(agent.sessionId()).as("full session id resolved").isNotBlank();

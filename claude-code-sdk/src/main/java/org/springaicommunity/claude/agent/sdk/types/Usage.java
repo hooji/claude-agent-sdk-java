@@ -41,16 +41,15 @@ public record Usage(@JsonProperty("input_tokens") int inputTokens,
 		@JsonProperty("cache_read_input_tokens") int cacheReadInputTokens) {
 
 	/**
-	 * Backward-compatible constructor for callers that don't provide cache token
-	 * counts.
+	 * Backward-compatible constructor for callers that don't provide cache token counts.
 	 */
 	public Usage(int inputTokens, int outputTokens, int thinkingTokens) {
 		this(inputTokens, outputTokens, thinkingTokens, 0, 0);
 	}
 
 	/**
-	 * Gets the total input tokens including cached tokens. This is the actual number
-	 * of input tokens consumed by the API call.
+	 * Gets the total input tokens including cached tokens. This is the actual number of
+	 * input tokens consumed by the API call.
 	 */
 	public int getTotalInputTokens() {
 		return inputTokens + cacheCreationInputTokens + cacheReadInputTokens;
@@ -166,8 +165,7 @@ public record Usage(@JsonProperty("input_tokens") int inputTokens,
 		}
 
 		public Usage build() {
-			return new Usage(inputTokens, outputTokens, thinkingTokens, cacheCreationInputTokens,
-					cacheReadInputTokens);
+			return new Usage(inputTokens, outputTokens, thinkingTokens, cacheCreationInputTokens, cacheReadInputTokens);
 		}
 
 	}

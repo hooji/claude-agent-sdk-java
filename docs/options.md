@@ -115,6 +115,7 @@ flag it maps to (or "SDK-side" when none).
 | [`plugins`](#plugins) | `--plugin-dir` | empty |
 | [`mcpServers`](#mcpservers) | `--mcp-config` | empty |
 | [`env`](#env) | SDK-side (process env) | empty |
+| [`oauthToken`](#oauthtoken) | SDK-side (env `CLAUDE_CODE_OAUTH_TOKEN`) | none (ambient auth) |
 | [`otelLogRawApiBodiesDirectory`](#otellograwapibodiesdirectory) | SDK-side (env vars) | off |
 | [`user`](#user) | SDK-side (`sudo -u`) | none |
 | [`maxBufferSize`](#maxbuffersize) | SDK-side | 1 MB |
@@ -219,10 +220,18 @@ separate `--dangerously-skip-permissions` flag. The `PermissionMode` enum:
 
 | Value | CLI value | Behavior |
 |-------|-----------|----------|
-| `DEFAULT` | `default` | Normal prompting for tool permissions |
+| `DEFAULT` | `default` | Normal prompting for tool permissions (legacy alias of `manual`, still accepted) |
+| `MANUAL` | `manual` | Same prompting behavior under its current CLI name |
 | `ACCEPT_EDITS` | `acceptEdits` | File edits auto-approved; other tools still gated |
+| `AUTO` | `auto` | The CLI's permission classifier decides per action: safe actions run unprompted, risky ones still surface (rules configurable via the `autoMode` settings section; inspect with `claude auto-mode config`) |
+| `PLAN` | `plan` | Read-only planning; execution requires plan approval |
+| `DONT_ASK` | `dontAsk` | Never prompts — anything that would need a prompt is denied automatically; only pre-approved actions run |
 | `BYPASS_PERMISSIONS` | `bypassPermissions` | All permission checks bypassed |
 | `DANGEROUSLY_SKIP_PERMISSIONS` | `--dangerously-skip-permissions` | Everything runs unprompted — sandboxed environments only |
+
+For unattended sessions, `AUTO` (headed judgment without a human) and `DONT_ASK`
+(deterministic deny) are the two purpose-built choices; `PLAN` blocks waiting for an
+approval no one will give, so avoid it headless.
 
 Defaults differ by path, so set it explicitly when it matters:
 `CLIOptions.builder()` defaults to `BYPASS_PERMISSIONS` (headless-friendly), the
@@ -343,6 +352,22 @@ itself. For reference, the SDK-provided baseline: the parent process environment
 `ANTHROPIC_API_KEY` (when present in the JVM's environment), plus
 `CLAUDE_CODE_ENTRYPOINT=sdk-java` and `CLAUDE_AGENT_SDK_JAVA_VERSION` for telemetry
 identification.
+
+#### `oauthToken`
+
+SDK-side convenience over `env` — authenticates the CLI subprocess with a **long-lived
+Claude OAuth token** by injecting it as `CLAUDE_CODE_OAUTH_TOKEN` (the documented
+headless-authentication mechanism; mint one with `claude setup-token`, requires a
+Claude subscription). Available on `CLIOptions.builder()` and on both
+`ClaudeClient.sync()/async()` fluent specs; `null` is a no-op so the value can be
+plumbed through unconditionally.
+
+Two sharp edges, both inherent to the CLI: these tokens are *inference-only*
+(`user:inference`/`user:profile` scopes) — they run models but are rejected by the
+cloud-sessions API, which needs the short-lived interactive login token (see
+[cloud-sessions.md](cloud-sessions.md)); and the CLI prefers `ANTHROPIC_API_KEY` over
+an OAuth token when both reach the process. A later explicit
+`env("CLAUDE_CODE_OAUTH_TOKEN", ...)` overrides this option (last write wins).
 
 #### `otelLogRawApiBodiesDirectory`
 

@@ -216,7 +216,8 @@ public class ControlMessageParser {
 	private ParsedMessage parseRateLimitEvent(JsonNode node) throws MessageParseException {
 		try {
 			RateLimitEvent event = objectMapper.treeToValue(node, RateLimitEvent.class);
-			logger.debug("Rate limit event: status={}, type={}, resetsAt={}", event.rateLimitInfo() != null ? event.rateLimitInfo().status() : "unknown",
+			logger.debug("Rate limit event: status={}, type={}, resetsAt={}",
+					event.rateLimitInfo() != null ? event.rateLimitInfo().status() : "unknown",
 					event.rateLimitInfo() != null ? event.rateLimitInfo().rateLimitType() : "unknown",
 					event.rateLimitInfo() != null ? event.rateLimitInfo().resetsAt() : 0);
 			return ParsedMessage.RateLimitEventMessage.of(event);

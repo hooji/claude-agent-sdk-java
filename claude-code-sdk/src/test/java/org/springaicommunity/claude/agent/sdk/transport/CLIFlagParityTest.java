@@ -222,6 +222,20 @@ class CLIFlagParityTest {
 		}
 
 		@Test
+		@DisplayName("--permission-mode passes each mode's CLI value verbatim")
+		void permissionModeValues() {
+			try (StreamingTransport transport = createTransport()) {
+				for (PermissionMode mode : new PermissionMode[] { PermissionMode.DEFAULT, PermissionMode.MANUAL,
+						PermissionMode.ACCEPT_EDITS, PermissionMode.AUTO, PermissionMode.PLAN, PermissionMode.DONT_ASK,
+						PermissionMode.BYPASS_PERMISSIONS }) {
+					CLIOptions options = CLIOptions.builder().permissionMode(mode).build();
+					List<String> cmd = transport.buildStreamingCommand(options);
+					assertThat(cmd).as("mode %s", mode).containsSubsequence("--permission-mode", mode.getValue());
+				}
+			}
+		}
+
+		@Test
 		@DisplayName("--dangerously-skip-permissions flag")
 		void dangerouslySkipPermissions() {
 			try (StreamingTransport transport = createTransport()) {

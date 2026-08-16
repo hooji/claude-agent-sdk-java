@@ -169,8 +169,7 @@ class ClaudeLocalSessionsTest {
 			assertThat(s.pid()).isEqualTo(1);
 			assertThat(s.sessionId()).isEqualTo("s-1");
 			// Unknown scalar, array, and nested-object fields all preserved
-			assertThat(s.allValues())
-				.containsEntry("entrypoint", "remote")
+			assertThat(s.allValues()).containsEntry("entrypoint", "remote")
 				.containsEntry("version", "9.9.9")
 				.containsEntry("labels.0", "a")
 				.containsEntry("labels.1", "b")
@@ -183,8 +182,7 @@ class ClaudeLocalSessionsTest {
 		@Test
 		void allValuesMirrorsTypedFields() throws IOException {
 			LocalSession s = parseOne(INTERACTIVE);
-			assertThat(s.allValues())
-				.containsEntry("pid", "553")
+			assertThat(s.allValues()).containsEntry("pid", "553")
 				.containsEntry("kind", "interactive")
 				.containsEntry("startedAt", "1784152250583")
 				.containsEntry("sessionId", "b7cc4933-56d9-51df-8477-4a783e46493f");
@@ -193,8 +191,7 @@ class ClaudeLocalSessionsTest {
 		@Test
 		void allValuesIsUnmodifiable() throws IOException {
 			LocalSession s = parseOne(INTERACTIVE);
-			assertThatThrownBy(() -> s.allValues().put("x", "y"))
-				.isInstanceOf(UnsupportedOperationException.class);
+			assertThatThrownBy(() -> s.allValues().put("x", "y")).isInstanceOf(UnsupportedOperationException.class);
 		}
 
 	}

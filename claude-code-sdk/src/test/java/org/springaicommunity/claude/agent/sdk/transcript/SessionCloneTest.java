@@ -59,11 +59,13 @@ class SessionCloneTest {
 		Files.write(srcProjDir.resolve(sid + ".jsonl"),
 				List.of(mapper.writeValueAsString(l1), mapper.writeValueAsString(l2)));
 
-		// The AI's persistent memory folder next to the transcript, referencing a source path.
+		// The AI's persistent memory folder next to the transcript, referencing a source
+		// path.
 		Files.createDirectories(srcProjDir.resolve("memory"));
 		Files.writeString(srcProjDir.resolve("memory/MEMORY.md"), "main class at " + srcReal + "/src/Foo.java");
 
-		// targetDir provided by @TempDir is empty -> allowed; remove so clone creates it fresh too
+		// targetDir provided by @TempDir is empty -> allowed; remove so clone creates it
+		// fresh too
 		Files.delete(target);
 
 		SessionClone.Result r = SessionClone.clone(sid, source.toString(), target.toString(), projects.toString());
@@ -75,11 +77,12 @@ class SessionCloneTest {
 		// 2. a new session id + a transcript in the target's projects folder
 		assertThat(r.sessionId()).isNotEqualTo(sid);
 		assertThat(Path.of(r.transcriptPath())).exists();
-		assertThat(r.transcriptPath()).isEqualTo(
-				projects.resolve(SessionClone.sanitize(target.toRealPath().toString())).resolve(r.sessionId() + ".jsonl")
-					.toString());
+		assertThat(r.transcriptPath()).isEqualTo(projects.resolve(SessionClone.sanitize(target.toRealPath().toString()))
+			.resolve(r.sessionId() + ".jsonl")
+			.toString());
 
-		// 3. transcript re-homed: sessionId re-stamped, cwd + filePath rewritten to the target dir
+		// 3. transcript re-homed: sessionId re-stamped, cwd + filePath rewritten to the
+		// target dir
 		String tgtReal = target.toRealPath().toString();
 		List<String> lines = Files.readAllLines(Path.of(r.transcriptPath()));
 		JsonNode c1 = mapper.readTree(lines.get(0));
@@ -98,8 +101,10 @@ class SessionCloneTest {
 	@Test
 	void clonesTheTaskListUnderTheNewId(@TempDir Path source, @TempDir Path target, @TempDir Path config)
 			throws Exception {
-		// Tasks live under the config dir's tasks/ root (a sibling of projects/), keyed by
-		// session id — so this test uses a config-shaped layout rather than a bare projects dir.
+		// Tasks live under the config dir's tasks/ root (a sibling of projects/), keyed
+		// by
+		// session id — so this test uses a config-shaped layout rather than a bare
+		// projects dir.
 		Path projects = config.resolve("projects");
 		Files.writeString(source.resolve("Foo.java"), "class Foo {}");
 		String srcReal = source.toRealPath().toString();
@@ -122,11 +127,13 @@ class SessionCloneTest {
 		Files.delete(target);
 		SessionClone.Result r = SessionClone.clone(sid, source.toString(), target.toString(), projects.toString());
 
-		// The task records were re-keyed to the clone's id, with path references re-homed —
+		// The task records were re-keyed to the clone's id, with path references re-homed
+		// —
 		// but never the CLI's .lock, which mirrors the live app's internal lock state.
 		String tgtReal = target.toRealPath().toString();
 		assertThat(Files.readString(config.resolve("tasks/" + r.sessionId() + "/1.json")))
 			.isEqualTo("{\"id\":\"1\",\"subject\":\"Fix " + tgtReal + "/Foo.java\",\"status\":\"pending\"}");
 		assertThat(config.resolve("tasks/" + r.sessionId() + "/.lock")).doesNotExist();
 	}
+
 }
