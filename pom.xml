@@ -69,7 +69,7 @@
 
         <!-- dependency versions -->
         <zt-exec.version>1.13.0</zt-exec.version>
-        <jackson.version>2.22.1</jackson.version>
+        <jackson.version>2.22.2</jackson.version>
         <!-- jackson-annotations stopped shipping patch releases; its 2.x line is
              versioned as plain major.minor (2.22), so it needs its own property. -->
         <jackson-annotations.version>2.22</jackson-annotations.version>
@@ -78,10 +78,10 @@
         <mcp.version>2.0.0</mcp.version>
 
         <!-- test dependency versions -->
-        <junit.version>6.1.2</junit.version>
+        <junit.version>6.1.3</junit.version>
         <mockito.version>5.23.0</mockito.version>
         <assertj.version>3.27.7</assertj.version>
-        <logback.version>1.5.38</logback.version>
+        <logback.version>1.6.3</logback.version>
 
         <!-- plugin versions -->
         <maven-compiler-plugin.version>3.11.0</maven-compiler-plugin.version>
