@@ -514,8 +514,13 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 		return Mono.<Void>fromRunnable(() -> {
 			if (closed.compareAndSet(false, true)) {
 				connected.set(false);
-				cleanup();
-				removeShutdownHook();
+				try {
+					cleanup();
+				}
+				finally {
+					// The hook pins this client for the life of the JVM.
+					removeShutdownHook();
+				}
 				logger.info("Client closed");
 			}
 		}).subscribeOn(Schedulers.boundedElastic());
@@ -864,30 +869,53 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 		}
 	}
 
+	/**
+	 * Release everything this client holds, one step at a time.
+	 * <p>
+	 * Every step is isolated, because by the time cleanup runs the things being released
+	 * are exactly the ones most likely to be unreachable: a transport whose process has
+	 * already exited, or subscribers that have gone away - which, when this client is
+	 * driven over a remoting layer, means completing a sink can try to call a peer whose
+	 * connection has just dropped. Letting such a failure escape would abandon every step
+	 * after it and leave the client half-released, so each one is attempted independently
+	 * and logged if it fails.
+	 */
 	private void cleanup() {
 		StreamingTransport transport = transportRef.getAndSet(null);
 		if (transport != null) {
-			try {
-				transport.close();
-			}
-			catch (Exception e) {
-				logger.warn("Error closing transport", e);
-			}
+			cleanupStep("closing the transport", transport::close);
 		}
 
 		// Complete and clear the current turn sink
 		Sinks.Many<Message> turnSink = currentTurnSink.getAndSet(null);
 		if (turnSink != null) {
-			turnSink.tryEmitComplete();
+			cleanupStep("completing the turn sink", turnSink::tryEmitComplete);
 		}
 
-		// Complete and clear the raw message sink
-		if (rawMessageSink != null) {
-			rawMessageSink.tryEmitComplete();
+		// Complete and clear the raw message sink, clearing first so that the
+		// field ends up null even if the completion itself does not get through.
+		Sinks.Many<ParsedMessage> rawSink = rawMessageSink;
+		if (rawSink != null) {
 			rawMessageSink = null;
+			cleanupStep("completing the raw message sink", rawSink::tryEmitComplete);
 		}
 
-		pendingResponses.clear();
+		cleanupStep("clearing pending control responses", pendingResponses::clear);
+	}
+
+	/**
+	 * Attempt one cleanup step, keeping a failure in it from abandoning the steps that
+	 * follow.
+	 * @param step description of the work, used only if it has to be reported
+	 * @param action the cleanup work to attempt
+	 */
+	private void cleanupStep(String step, Runnable action) {
+		try {
+			action.run();
+		}
+		catch (Exception e) {
+			logger.warn("Error while {} - continuing with the rest of the cleanup", step, e);
+		}
 	}
 
 	// ========================================================================

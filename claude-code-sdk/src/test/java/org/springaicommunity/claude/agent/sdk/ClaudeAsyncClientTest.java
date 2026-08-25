@@ -22,15 +22,23 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springaicommunity.claude.agent.sdk.config.PermissionMode;
 import org.springaicommunity.claude.agent.sdk.hooks.HookRegistry;
+import org.springaicommunity.claude.agent.sdk.parsing.ParsedMessage;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
+import org.springaicommunity.claude.agent.sdk.types.Message;
 import org.springaicommunity.claude.agent.sdk.types.control.HookEvent;
 import org.springaicommunity.claude.agent.sdk.types.control.HookOutput;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Unit tests for ClaudeClient.async() factory and ClaudeAsyncClient.
@@ -457,6 +465,63 @@ class ClaudeAsyncClientTest {
 			assertThat(client.getToolPermissionCallback()).isNotNull();
 
 			client.close();
+		}
+
+	}
+
+	@Nested
+	@DisplayName("close() Cleanup Isolation Tests")
+	class CloseCleanupTests {
+
+		/**
+		 * A sink completion can fail for reasons outside this client's control - most
+		 * sharply when the client is driven over a remoting layer and its subscribers
+		 * live on a peer whose connection has just dropped, so completing the sink tries
+		 * to call a socket that is already closed. That must not abandon the rest of the
+		 * cleanup.
+		 */
+		@Test
+		@DisplayName("close() completes every cleanup step even when a sink completion fails")
+		@SuppressWarnings("unchecked")
+		void shouldFinishCleanupWhenASinkCompletionFails() throws Exception {
+			ClaudeAsyncClient client = ClaudeClient.async().workingDirectory(workingDirectory).build();
+
+			Sinks.Many<Message> turnSink = mock(Sinks.Many.class);
+			doThrow(new IllegalStateException("peer connection is gone")).when(turnSink).tryEmitComplete();
+			Sinks.Many<ParsedMessage> rawSink = mock(Sinks.Many.class);
+			doThrow(new IllegalStateException("peer connection is gone")).when(rawSink).tryEmitComplete();
+
+			((AtomicReference<Sinks.Many<Message>>) readField(client, "currentTurnSink")).set(turnSink);
+			setField(client, "rawMessageSink", rawSink);
+
+			Thread shutdownHook = (Thread) readField(client, "shutdownHook");
+
+			assertThatNoException().isThrownBy(client::close);
+
+			// Both sinks were attempted - the first failure did not skip the second.
+			verify(turnSink).tryEmitComplete();
+			verify(rawSink).tryEmitComplete();
+
+			// And the steps after them still ran: the sink field was cleared and the
+			// shutdown hook - which pins this client for the life of the JVM - came off.
+			assertThat(readField(client, "rawMessageSink")).isNull();
+			assertThat(Runtime.getRuntime().removeShutdownHook(shutdownHook))
+				.as("the shutdown hook should already have been removed by close()")
+				.isFalse();
+		}
+
+		private Object readField(Object target, String name) throws Exception {
+			return field(name).get(target);
+		}
+
+		private void setField(Object target, String name, Object value) throws Exception {
+			field(name).set(target, value);
+		}
+
+		private Field field(String name) throws Exception {
+			Field field = DefaultClaudeAsyncClient.class.getDeclaredField(name);
+			field.setAccessible(true);
+			return field;
 		}
 
 	}
