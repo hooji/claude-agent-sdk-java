@@ -20,6 +20,8 @@ import org.springaicommunity.claude.agent.sdk.parsing.ParsedMessage;
 import org.springaicommunity.claude.agent.sdk.permission.ToolPermissionCallback;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitEvent;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitSnapshot;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.StreamEvent;
 import reactor.core.publisher.Flux;
@@ -293,6 +295,25 @@ public interface ClaudeAsyncClient extends TranscriptAware {
 	 * @return Flux of parsed messages
 	 */
 	Flux<ParsedMessage> receiveMessages();
+
+	/**
+	 * The CLI's {@code rate_limit_event} stream messages as a typed Flux (claude.ai
+	 * subscription accounts only). The CLI emits one on the first API response of the
+	 * session and again whenever the reported values change — not once per turn.
+	 * @return Flux of rate limit events; errors if the client is not connected
+	 */
+	Flux<RateLimitEvent> rateLimitEvents();
+
+	/**
+	 * The most recent rate limit status observed on this session, from the CLI's
+	 * {@code rate_limit_event} stream messages (claude.ai subscription accounts only).
+	 * The CLI reports it on the first API response of the session and again whenever the
+	 * values change, so the snapshot refreshes as the conversation progresses; check
+	 * {@link RateLimitSnapshot#age()} when staleness matters.
+	 * @return the latest snapshot, or empty before the first inference response (and
+	 * always empty for API-key billing, which has no unified limits)
+	 */
+	Optional<RateLimitSnapshot> latestRateLimit();
 
 	/**
 	 * Receives response messages, returning only regular messages (not control messages).

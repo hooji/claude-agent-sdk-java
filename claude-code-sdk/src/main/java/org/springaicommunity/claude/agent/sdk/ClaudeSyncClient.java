@@ -21,9 +21,11 @@ import org.springaicommunity.claude.agent.sdk.parsing.ParsedMessage;
 import org.springaicommunity.claude.agent.sdk.permission.ToolPermissionCallback;
 import org.springaicommunity.claude.agent.sdk.streaming.MessageReceiver;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitSnapshot;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Synchronous (blocking) client for multi-turn conversations with Claude CLI.
@@ -114,6 +116,18 @@ public interface ClaudeSyncClient extends TranscriptAware, AutoCloseable {
 	 * @return iterator over parsed messages, stops after ResultMessage
 	 */
 	Iterator<ParsedMessage> receiveResponse();
+
+	/**
+	 * The most recent rate limit status observed on this session, from the CLI's
+	 * {@code rate_limit_event} stream messages (claude.ai subscription accounts only).
+	 * The CLI reports it on the first API response of the session and again whenever the
+	 * values change, so the snapshot refreshes as the conversation progresses; check
+	 * {@link org.springaicommunity.claude.agent.sdk.types.RateLimitSnapshot#age()} when
+	 * staleness matters.
+	 * @return the latest snapshot, or empty before the first inference response (and
+	 * always empty for API-key billing, which has no unified limits)
+	 */
+	Optional<RateLimitSnapshot> latestRateLimit();
 
 	// ========== Convenience Methods for Elegant Multi-Turn ==========
 

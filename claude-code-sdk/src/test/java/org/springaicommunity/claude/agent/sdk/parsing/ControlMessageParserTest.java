@@ -549,6 +549,74 @@ class ControlMessageParserTest {
 		}
 
 		@Test
+		@DisplayName("Should parse unifiedWindows and keep the raw payload (CLI 2.1.251 wire format)")
+		void shouldParseUnifiedWindows() throws Exception {
+			// Verbatim payload captured from Claude CLI 2.1.251 stream-json output
+			String json = """
+					{
+					  "type": "rate_limit_event",
+					  "rate_limit_info": {
+					    "status": "allowed",
+					    "resetsAt": 1788054000,
+					    "rateLimitType": "five_hour",
+					    "overageStatus": "rejected",
+					    "overageDisabledReason": "org_level_disabled",
+					    "isUsingOverage": false,
+					    "unifiedWindows": {
+					      "five_hour": {
+					        "utilization": 0.37,
+					        "resetsAt": 1788054000
+					      },
+					      "seven_day": {
+					        "utilization": 0.1,
+					        "resetsAt": 1788231600
+					      }
+					    }
+					  },
+					  "uuid": "bb28326e-ba98-407a-99ea-fb11bb288733",
+					  "session_id": "16cc5e55-b211-59a3-bfde-919227deb767"
+					}
+					""";
+
+			ParsedMessage result = parser.parse(json);
+			RateLimitEvent event = result.asRateLimitEvent();
+
+			assertThat(event).isNotNull();
+			assertThat(event.rateLimitInfo().fiveHour()).isPresent();
+			assertThat(event.rateLimitInfo().fiveHour().get().utilization()).isEqualTo(0.37);
+			assertThat(event.rateLimitInfo().fiveHour().get().resetsAt()).isEqualTo(1788054000L);
+			assertThat(event.rateLimitInfo().sevenDay()).isPresent();
+			assertThat(event.rateLimitInfo().sevenDay().get().utilization()).isEqualTo(0.1);
+			assertThat(event.rateLimitInfo().sevenDay().get().resetsAt()).isEqualTo(1788231600L);
+			assertThat(event.rateLimitInfo().windows()).containsOnlyKeys("five_hour", "seven_day");
+
+			// The raw payload is preserved for fields this SDK doesn't model yet
+			assertThat(event.rawValues()).isNotNull();
+			assertThat(event.rawValues().get("type")).isEqualTo("rate_limit_event");
+			assertThat(event.rawValues().get("rate_limit_info")).isInstanceOf(java.util.Map.class);
+		}
+
+		@Test
+		@DisplayName("Should tolerate absent unifiedWindows (older CLI wire format)")
+		void shouldTolerateAbsentUnifiedWindows() throws Exception {
+			String json = """
+					{
+					  "type": "rate_limit_event",
+					  "rate_limit_info": {"status": "allowed", "resetsAt": 1772157600, "rateLimitType": "five_hour", "overageStatus": "rejected", "overageDisabledReason": "org_level_disabled", "isUsingOverage": false},
+					  "uuid": "test-uuid",
+					  "session_id": "test-session"
+					}
+					""";
+
+			RateLimitEvent event = parser.parse(json).asRateLimitEvent();
+
+			assertThat(event.rateLimitInfo().unifiedWindows()).isNull();
+			assertThat(event.rateLimitInfo().windows()).isEmpty();
+			assertThat(event.rateLimitInfo().fiveHour()).isEmpty();
+			assertThat(event.rateLimitInfo().sevenDay()).isEmpty();
+		}
+
+		@Test
 		@DisplayName("Should not produce ERROR log for rate_limit_event")
 		void shouldNotTreatAsUnrecognizedType() throws Exception {
 			String json = """

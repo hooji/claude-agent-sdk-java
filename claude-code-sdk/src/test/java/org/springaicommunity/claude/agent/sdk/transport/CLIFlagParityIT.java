@@ -100,7 +100,12 @@ class CLIFlagParityIT extends ClaudeCliTestBase {
 			"remote-control-session-name-prefix", "plugin-url", "n", "file", "debug-file",
 
 			// CLI 2.1.x flags that may warrant SDK support later — not yet evaluated
-			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections",
+			// (restricted = tool-stripping mode that also ignores settings files)
+			"effort", "safe-mode", "include-hook-events", "exclude-dynamic-system-prompt-sections", "restricted",
+
+			// Not a top-level flag: the help parser picks "--all" out of the respawn
+			// subcommand's description text ("or all of them with --all")
+			"all",
 
 			// Accessibility flag: only affects interactive TUI rendering (flat text, no
 			// borders or
