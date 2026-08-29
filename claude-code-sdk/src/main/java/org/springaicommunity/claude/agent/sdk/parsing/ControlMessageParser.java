@@ -16,7 +16,10 @@
 
 package org.springaicommunity.claude.agent.sdk.parsing;
 
+import java.util.Map;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,6 +61,9 @@ public class ControlMessageParser {
 	private static final String TYPE_CONTROL_RESPONSE = "control_response";
 
 	private static final String TYPE_RATE_LIMIT_EVENT = "rate_limit_event";
+
+	private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {
+	};
 
 	/** Default maximum buffer size for JSON parsing (1MB). */
 	public static final int DEFAULT_MAX_BUFFER_SIZE = 1024 * 1024;
@@ -216,13 +222,17 @@ public class ControlMessageParser {
 	private ParsedMessage parseRateLimitEvent(JsonNode node) throws MessageParseException {
 		try {
 			RateLimitEvent event = objectMapper.treeToValue(node, RateLimitEvent.class);
+			// Preserve the complete wire payload — this event's shape is still evolving
+			// (e.g. unifiedWindows appeared ahead of the published SDK typings)
+			Map<String, Object> raw = objectMapper.convertValue(node, MAP_TYPE);
+			event = event.withRawValues(raw);
 			logger.debug("Rate limit event: status={}, type={}, resetsAt={}",
 					event.rateLimitInfo() != null ? event.rateLimitInfo().status() : "unknown",
 					event.rateLimitInfo() != null ? event.rateLimitInfo().rateLimitType() : "unknown",
 					event.rateLimitInfo() != null ? event.rateLimitInfo().resetsAt() : 0);
 			return ParsedMessage.RateLimitEventMessage.of(event);
 		}
-		catch (JsonProcessingException e) {
+		catch (JsonProcessingException | IllegalArgumentException e) {
 			throw new MessageParseException("Failed to parse rate_limit_event: " + e.getMessage(), e);
 		}
 	}

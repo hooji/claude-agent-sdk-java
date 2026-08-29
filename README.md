@@ -49,6 +49,7 @@ This repository is a fork of [spring-ai-community/claude-agent-sdk-java](https:/
 | **Reliable async client shutdown** | `ClaudeAsyncClient.close()` is now a blocking `void` method instead of a cold `Mono<Void>` that silently did nothing unless subscribed — a common way to leak the Claude CLI subprocess. A JVM shutdown hook also force-closes the client (and terminates the CLI process) if the application exits without calling `close()`. | — |
 | **Raw API body logging** (`CLIOptions.otelLogRawApiBodiesDirectory`) | Sets the CLI's `OTEL_LOG_RAW_API_BODIES` environment variable to `file:<directory>`, so the CLI writes untruncated request/response JSON for every Anthropic Messages API call into that directory. Also sets `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `OTEL_LOGS_EXPORTER=console` (the other two prerequisites for this to actually produce output), overridable afterward via `env(...)` if you already export telemetry elsewhere. | — |
 | **Cloud sessions monitor** (`ClaudeCloudSessions`) | Lists Claude Code **cloud** sessions (the `claude --teleport` set) via the undocumented `/v1/code/sessions` API, exposing the live `worker_status` (`idle` / `requires_action` / working) the teleport picker doesn't show — plus single-session fetch (`getCloudSession(id)`), a polling **turn-end watch** (`watchForTurnEnd`, callback when a session goes idle / needs you; ≥15s good-citizen polling), cursor pagination, a fully-typed `CloudSession` record with a flattened raw-value map, and OAuth token helpers: read (macOS Keychain / Linux `~/.claude/.credentials.json`), introspect (`isOAuthTokenValid()` / `oauthTokenTimeRemaining()` / `getClaudeOAuthCredentials()`), and refresh via the CLI (`refreshOAuthToken()`). Part of `claude-code-sdk` (and the fat jar). | [docs/cloud-sessions.md](docs/cloud-sessions.md) |
+| **Account rate limits** (`ClaudeAccountRateLimits`) | Read the account's current claude.ai subscription rate limits — 5-hour / 7-day window utilization and reset times — via the CLI's **supported** stream-json `rate_limit_event` (no undocumented HTTP API). Standalone `fetch()` runs a minimal disposable Haiku probe session (~$0.002, 3–4s, no pre-existing session needed); connected `ClaudeSyncClient` / `ClaudeAsyncClient` sessions capture the same events for free, exposed as `client.latestRateLimit()` (plus a `rateLimitEvents()` Flux on the async client). Typed `RateLimitSnapshot` / `RateLimitInfo` / `RateLimitWindow` with the raw payload preserved. | [docs/account-rate-limits.md](docs/account-rate-limits.md) |
 | **CLI version management** (`ClaudeCliVersions`) | Read the installed CLI version (`claude --version`), discover the newest version on the `stable` / `latest` / `next` release channels (npm dist-tags), compare them with `checkForUpdate()`, and trigger `claude update` — with an honest `wasUpdated()` before/after signal instead of the CLI's unreliable exit code. | [CLI Version Management](#cli-version-management) |
 | **CLI installation** (`ClaudeCliInstaller`) | Detect whether the Claude CLI is present (`isInstalled()` / `installedPath()`), and install it from Anthropic's official native-installer script (`claude.ai/install.sh` / `.ps1`; `stable` / `latest` / pinned version) when it isn't — `ensureInstalled()` in one call, with the result verified by re-discovery instead of trusting the script's exit code. | [CLI Installation](#cli-installation) |
 | **OAuth token injection** (`oauthToken(...)`) | First-class client/builder option for headless auth: injects a `claude setup-token` long-lived token as `CLAUDE_CODE_OAUTH_TOKEN` into the CLI subprocess. | [docs/options.md](docs/options.md) |
@@ -500,6 +501,7 @@ claude-agent-sdk-java/
 │       │   ├── ClaudeAsyncClient.java  # Reactive client interface
 │       │   ├── TranscriptAware.java    # Session history access on clients
 │       │   ├── transcript/             # TranscriptDirectory, Session, SessionClone
+│       │   ├── usage/                  # ClaudeAccountRateLimits
 │       │   ├── transport/              # StreamingTransport
 │       │   ├── streaming/              # MessageStreamIterator
 │       │   ├── hooks/                  # HookRegistry, HookCallback
@@ -513,6 +515,7 @@ claude-agent-sdk-java/
 │   ├── options.md            # Every configuration option, explained
 │   ├── session-history.md    # Transcripts, fork recovery, replay, cloning
 │   ├── cloud-sessions.md     # Cloud sessions monitor (ClaudeCloudSessions)
+│   ├── account-rate-limits.md # Account rate limits (ClaudeAccountRateLimits)
 │   ├── partial-streaming.md  # Token-level streaming
 │   └── releasing.md          # Release workflows and artifacts
 └── examples/

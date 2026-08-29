@@ -30,6 +30,8 @@ import org.springaicommunity.claude.agent.sdk.transport.StreamingTransport;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitEvent;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitSnapshot;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.StreamEvent;
 import org.springaicommunity.claude.agent.sdk.types.SystemMessage;
@@ -113,6 +115,9 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	private final AtomicReference<String> currentModel = new AtomicReference<>();
 
 	private final AtomicReference<String> currentPermissionMode = new AtomicReference<>();
+
+	// Most recent rate_limit_event observed on this session's stream
+	private final AtomicReference<RateLimitSnapshot> latestRateLimit = new AtomicReference<>();
 
 	// Tool permission callback
 	private volatile ToolPermissionCallback toolPermissionCallback;
@@ -356,6 +361,16 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 			// Subscribe to raw message sink for low-level access
 			return rawMessageSink.asFlux();
 		});
+	}
+
+	@Override
+	public Flux<RateLimitEvent> rateLimitEvents() {
+		return receiveMessages().filter(ParsedMessage::isRateLimitEvent).map(ParsedMessage::asRateLimitEvent);
+	}
+
+	@Override
+	public Optional<RateLimitSnapshot> latestRateLimit() {
+		return Optional.ofNullable(latestRateLimit.get());
 	}
 
 	/**
@@ -623,7 +638,21 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	 * @param message the parsed message from the CLI
 	 */
 	private void handleMessage(ParsedMessage message) {
+		if (message instanceof ParsedMessage.EndOfStream) {
+			// The CLI's output stream ended (process exit) — complete downstream sinks
+			// so subscribers don't wait forever for messages that can never arrive
+			Sinks.Many<Message> turnSink = currentTurnSink.get();
+			if (turnSink != null) {
+				turnSink.tryEmitComplete();
+			}
+			Sinks.Many<ParsedMessage> rawSink = rawMessageSink;
+			if (rawSink != null) {
+				rawSink.tryEmitComplete();
+			}
+			return;
+		}
 		captureSessionId(message);
+		captureRateLimit(message);
 
 		// Route to raw sink for low-level access
 		if (rawMessageSink != null) {
@@ -676,6 +705,14 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 			else {
 				logger.debug("handleMessage: no turn sink active, skipping {}", msg.getClass().getSimpleName());
 			}
+		}
+	}
+
+	// Package-private for tests. Keeps the newest rate_limit_event; the CLI sends one on
+	// the first API response and again whenever the reported values change.
+	void captureRateLimit(ParsedMessage message) {
+		if (message.isRateLimitEvent()) {
+			latestRateLimit.set(RateLimitSnapshot.of(message.asRateLimitEvent()));
 		}
 	}
 

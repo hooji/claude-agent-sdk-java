@@ -34,6 +34,7 @@ import org.springaicommunity.claude.agent.sdk.transport.StreamingTransport;
 import org.springaicommunity.claude.agent.sdk.transport.CLIOptions;
 import org.springaicommunity.claude.agent.sdk.types.AssistantMessage;
 import org.springaicommunity.claude.agent.sdk.types.Message;
+import org.springaicommunity.claude.agent.sdk.types.RateLimitSnapshot;
 import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
 import org.springaicommunity.claude.agent.sdk.types.SystemMessage;
 import org.springaicommunity.claude.agent.sdk.types.control.ControlRequest;
@@ -111,6 +112,9 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 	private final AtomicReference<String> currentModel = new AtomicReference<>();
 
 	private final AtomicReference<String> currentPermissionMode = new AtomicReference<>();
+
+	// Most recent rate_limit_event observed on this session's stream
+	private final AtomicReference<RateLimitSnapshot> latestRateLimit = new AtomicReference<>();
 
 	// Tool permission callback
 	private volatile ToolPermissionCallback toolPermissionCallback;
@@ -441,12 +445,36 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 	}
 
 	private void handleMessage(ParsedMessage message) {
+		if (message instanceof ParsedMessage.EndOfStream) {
+			// The CLI's output stream ended (process exit) — unblock waiting receivers
+			if (messageIterator != null) {
+				messageIterator.complete();
+			}
+			if (blockingReceiver != null) {
+				blockingReceiver.complete();
+			}
+			return;
+		}
 		captureSessionId(message);
+		captureRateLimit(message);
 		// Forward regular messages to both receivers
 		if (message.isRegularMessage()) {
 			messageIterator.offer(message);
 			blockingReceiver.offer(message);
 		}
+	}
+
+	// Package-private for tests. Keeps the newest rate_limit_event; the CLI sends one on
+	// the first API response and again whenever the reported values change.
+	void captureRateLimit(ParsedMessage message) {
+		if (message.isRateLimitEvent()) {
+			latestRateLimit.set(RateLimitSnapshot.of(message.asRateLimitEvent()));
+		}
+	}
+
+	@Override
+	public Optional<RateLimitSnapshot> latestRateLimit() {
+		return Optional.ofNullable(latestRateLimit.get());
 	}
 
 	// Package-private for tests. The CLI stamps its session id on every system message

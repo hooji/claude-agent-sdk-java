@@ -826,6 +826,16 @@ public class StreamingTransport implements AutoCloseable {
 			logger.debug("processInboundMessages finally block, setting isClosing=true");
 			isClosing = true;
 			inboundSink.tryEmitComplete();
+			// Also signal end-of-stream through the handler path, so receivers fed by
+			// the message handler (the clients' blocking iterators) unblock when the
+			// CLI exits without a result — e.g. a startup failure. Without this they
+			// would wait forever for a message that can never arrive.
+			try {
+				messageHandler.accept(ParsedMessage.EndOfStream.INSTANCE);
+			}
+			catch (Exception e) {
+				logger.debug("End-of-stream notification failed", e);
+			}
 		}
 	}
 
