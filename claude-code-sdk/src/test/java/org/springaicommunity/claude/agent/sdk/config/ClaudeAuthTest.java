@@ -115,4 +115,66 @@ class ClaudeAuthTest {
 		assertThatThrownBy(() -> ClaudeAuth.parseStatus(null)).isInstanceOf(IOException.class);
 	}
 
+	@Test
+	void parsesOAuthProfileResponse() throws IOException {
+		String json = """
+				{
+				  "account": {
+				    "uuid": "32425b39-c355-4618-81f9-2ec7993a5466",
+				    "email_address": "alice@example.com",
+				    "full_name": "Alice Example",
+				    "display_name": "Alice"
+				  },
+				  "organization": {
+				    "uuid": "a11ee6c2-133c-41d0-bc03-ef93208aa531",
+				    "name": "alice@example.com's Organization",
+				    "organization_type": "claude_max",
+				    "rate_limit_tier": "default_claude_max_20x"
+				  }
+				}
+				""";
+
+		ClaudeAuth.OAuthProfile profile = ClaudeAuth.parseProfile(json);
+
+		assertThat(profile.accountUuid()).isEqualTo("32425b39-c355-4618-81f9-2ec7993a5466");
+		assertThat(profile.email()).isEqualTo("alice@example.com");
+		assertThat(profile.fullName()).isEqualTo("Alice Example");
+		assertThat(profile.displayName()).isEqualTo("Alice");
+		assertThat(profile.organizationUuid()).isEqualTo("a11ee6c2-133c-41d0-bc03-ef93208aa531");
+		assertThat(profile.organizationName()).isEqualTo("alice@example.com's Organization");
+
+		// Untyped fields survive in the flattened raw map
+		assertThat(profile.allValues()).containsEntry("organization.organization_type", "claude_max")
+			.containsEntry("organization.rate_limit_tier", "default_claude_max_20x")
+			.containsEntry("account.email_address", "alice@example.com");
+	}
+
+	@Test
+	void profileParseToleratesMissingSections() throws IOException {
+		ClaudeAuth.OAuthProfile profile = ClaudeAuth.parseProfile("{\"account\": {\"uuid\": \"u-1\"}}");
+
+		assertThat(profile.accountUuid()).isEqualTo("u-1");
+		assertThat(profile.email()).isNull();
+		assertThat(profile.organizationUuid()).isNull();
+
+		assertThatThrownBy(() -> ClaudeAuth.parseProfile("[]")).isInstanceOf(IOException.class);
+	}
+
+	@Test
+	void profileErrorRecognizesScopeRejection() {
+		// Verbatim error shape returned for a long-lived setup-token (scrubbed ids)
+		String body = """
+				{"type":"error","error":{"type":"permission_error","message":"OAuth token does not meet scope requirement any_of(user:profile, user:office)","details":{"required_scopes":["user:profile","user:office"],"match":"any","error_visibility":"user_facing","error_code":"oauth_scope_insufficient"}},"request_id":"req_000000000000000000000000"}
+				""";
+
+		IOException scopeError = ClaudeAuth.profileError("https://api.anthropic.com/api/oauth/profile", 403, body);
+		assertThat(scopeError).hasMessageContaining("user:profile")
+			.hasMessageContaining("setup-token")
+			.hasMessageContaining("getClaudeOAuthToken");
+
+		IOException expired = ClaudeAuth.profileError("https://api.anthropic.com/api/oauth/profile", 401,
+				"{\"type\":\"error\"}");
+		assertThat(expired).hasMessageContaining("401").hasMessageContaining("expired or invalid");
+	}
+
 }
