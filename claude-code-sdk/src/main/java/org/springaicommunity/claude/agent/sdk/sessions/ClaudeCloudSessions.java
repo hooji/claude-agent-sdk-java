@@ -772,7 +772,10 @@ public final class ClaudeCloudSessions {
 		return List.of(claudePath, "-p", "ok", "--max-turns", "1", "--model", "haiku");
 	}
 
-	private static String runCliRefreshInvocation() throws IOException {
+	/**
+	 * refresh the token
+	 */
+	public static String runCliRefreshInvocation() throws IOException {
 		String claudePath;
 		try {
 			claudePath = org.springaicommunity.claude.agent.sdk.config.ClaudeCliDiscovery.discoverClaudePath();
