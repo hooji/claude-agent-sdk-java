@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 import org.slf4j.Logger;
@@ -53,12 +52,13 @@ import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
  * </p>
  *
  * <pre>{@code
- * ClaudeAccountRateLimits.fetch().ifPresent(snapshot -> {
+ * RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
+ * if (snapshot != null) {
  *     snapshot.fiveHour().ifPresent(w -> System.out.printf("5h window: %.0f%% used, resets %s%n",
  *             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
  *     snapshot.sevenDay().ifPresent(w -> System.out.printf("7d window: %.0f%% used, resets %s%n",
  *             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
- * });
+ * }
  * }</pre>
  *
  * <p>
@@ -72,7 +72,7 @@ import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
  * Requirements and limits: the CLI must be new enough to emit {@code rate_limit_event}
  * with per-window data and accept {@code --tools} (2.1.x, early 2026 onward), and the
  * account must authenticate through a claude.ai subscription — API-key billing has no
- * unified rate limit windows, so {@link #fetch()} returns empty for it.
+ * unified rate limit windows, so {@link #fetch()} returns null for it.
  * </p>
  */
 public final class ClaudeAccountRateLimits {
@@ -91,24 +91,24 @@ public final class ClaudeAccountRateLimits {
 	/**
 	 * Fetches the account's current rate limit status with default settings (Haiku probe,
 	 * 2-minute timeout, CLI-managed authentication).
-	 * @return the current rate limit snapshot, or empty when the CLI reported none
+	 * @return the current rate limit snapshot, or null when the CLI reported none
 	 * (API-key billing, or a CLI too old to emit {@code rate_limit_event})
 	 * @throws ClaudeSDKException if the probe session itself fails (CLI missing, not
 	 * authenticated, timeout)
 	 */
-	public static Optional<RateLimitSnapshot> fetch() throws ClaudeSDKException {
+	public static RateLimitSnapshot fetch() throws ClaudeSDKException {
 		return fetch(FetchOptions.defaults());
 	}
 
 	/**
 	 * Fetches the account's current rate limit status.
 	 * @param fetchOptions probe configuration
-	 * @return the current rate limit snapshot, or empty when the CLI reported none
+	 * @return the current rate limit snapshot, or null when the CLI reported none
 	 * (API-key billing, or a CLI too old to emit {@code rate_limit_event})
 	 * @throws ClaudeSDKException if the probe session itself fails (CLI missing, not
 	 * authenticated, timeout)
 	 */
-	public static Optional<RateLimitSnapshot> fetch(FetchOptions fetchOptions) throws ClaudeSDKException {
+	public static RateLimitSnapshot fetch(FetchOptions fetchOptions) throws ClaudeSDKException {
 		Path workDir = fetchOptions.workingDirectory();
 		boolean ownWorkDir = workDir == null;
 		if (ownWorkDir) {
@@ -174,8 +174,8 @@ public final class ClaudeAccountRateLimits {
 					logger.debug("Probe turn failed after rate_limit_event was received; returning it", e);
 				}
 
-				Optional<RateLimitSnapshot> snapshot = client.latestRateLimit();
-				if (snapshot.isEmpty()) {
+				RateLimitSnapshot snapshot = client.latestRateLimit().orElse(null);
+				if (snapshot == null) {
 					if (!turnCompleted) {
 						// The CLI exited without ever answering — a startup failure,
 						// not an account without rate limits

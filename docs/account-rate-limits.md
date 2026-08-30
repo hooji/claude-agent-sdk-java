@@ -8,12 +8,13 @@ reset times — through a **supported** mechanism: the Claude CLI's stream-json
 ```java
 import org.springaicommunity.claude.agent.sdk.usage.ClaudeAccountRateLimits;
 
-ClaudeAccountRateLimits.fetch().ifPresent(snapshot -> {
+RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
+if (snapshot != null) {
     snapshot.fiveHour().ifPresent(w -> System.out.printf("5h window: %.0f%% used, resets %s%n",
             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
     snapshot.sevenDay().ifPresent(w -> System.out.printf("7d window: %.0f%% used, resets %s%n",
             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
-});
+}
 ```
 
 ```
@@ -90,10 +91,10 @@ polling on the order of minutes, wasteful as a per-second ticker.
 
 ```java
 // Defaults: haiku, 2-minute timeout, CLI-managed login
-Optional<RateLimitSnapshot> limits = ClaudeAccountRateLimits.fetch();
+RateLimitSnapshot limits = ClaudeAccountRateLimits.fetch();
 
 // Custom: a specific model, tighter timeout, headless token auth
-Optional<RateLimitSnapshot> custom = ClaudeAccountRateLimits.fetch(
+RateLimitSnapshot custom = ClaudeAccountRateLimits.fetch(
         ClaudeAccountRateLimits.FetchOptions.builder()
             .model("haiku")
             .timeout(Duration.ofSeconds(60))
@@ -101,11 +102,10 @@ Optional<RateLimitSnapshot> custom = ClaudeAccountRateLimits.fetch(
             .build());
 ```
 
-`fetch()` returns `Optional.empty()` when the probe session completes normally but the
-CLI reports no rate limit event — that is what API-key billing looks like. A probe that
-fails outright (CLI missing, unauthenticated, startup failure) throws
-`ClaudeSDKException`, with the CLI's stderr tail in the message when the process died
-early.
+`fetch()` returns null when the probe session completes normally but the CLI reports no
+rate limit event — that is what API-key billing looks like. A probe that fails outright
+(CLI missing, unauthenticated, startup failure) throws `ClaudeSDKException`, with the
+CLI's stderr tail in the message when the process died early.
 
 ### 2. On a connected session: `client.latestRateLimit()`
 
@@ -151,4 +151,4 @@ client.rateLimitEvents()
 * Claude CLI recent enough to emit `rate_limit_event` with `unifiedWindows` and to accept
   `--tools` (2.1.x, early 2026 onward; verified on 2.1.251)
 * claude.ai subscription authentication (Pro/Max) — for API-key billing the event does
-  not exist and `fetch()` returns empty
+  not exist and `fetch()` returns null
