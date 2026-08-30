@@ -787,7 +787,7 @@ public final class ClaudeCloudSessions {
 		// would refresh.
 		pb.environment().remove("ANTHROPIC_API_KEY");
 		pb.environment().remove("ANTHROPIC_AUTH_TOKEN");
-//		pb.environment().remove("CLAUDE_CODE_OAUTH_TOKEN");
+		// pb.environment().remove("CLAUDE_CODE_OAUTH_TOKEN");
 		pb.redirectErrorStream(true);
 		Process process = pb.start();
 		try {

@@ -34,6 +34,8 @@ import java.util.concurrent.TimeUnit;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.springaicommunity.claude.agent.sdk.sessions.ClaudeCloudSessions;
+
 /**
  * Reads the CLI's authentication status — including the identity of the signed-in
  * Anthropic account — via {@code claude auth status --json}. This is the supported way to
@@ -249,8 +251,19 @@ public final class ClaudeAuth {
 		throw profileError(url, response.statusCode(), response.body());
 	}
 
-	public static OAuthProfile profile() throws IOException, InterruptedException 
-	{
+	/**
+	 * Resolves this machine's stored interactive login token (Keychain on macOS,
+	 * {@code ~/.claude/.credentials.json} on Linux) to its account — a convenience for
+	 * {@code profile(ClaudeCloudSessions.getClaudeOAuthToken())}. Note this names the
+	 * <em>machine login's</em> account, which under {@code CLAUDE_CODE_OAUTH_TOKEN}
+	 * overrides may differ from the token a session actually runs with; pass that token
+	 * to {@link #profile(String)} explicitly when it matters.
+	 * @return the account the stored login token belongs to
+	 * @throws IOException if no unexpired login credential is stored, the request fails,
+	 * or the response cannot be parsed
+	 * @throws InterruptedException if interrupted while waiting for the response
+	 */
+	public static OAuthProfile profile() throws IOException, InterruptedException {
 		return profile(ClaudeCloudSessions.getClaudeOAuthToken());
 	}
 
