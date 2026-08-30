@@ -19,6 +19,10 @@ package org.springaicommunity.claude.agent.sdk.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
@@ -67,12 +71,29 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * {@link AuthStatus#allValues()}, a flattened {@code path -> string} map of the raw JSON
  * in which unknown/new fields are preserved.
  * </p>
+ *
+ * <p>
+ * When {@code status()} cannot name the account (token auth), {@link #profile(String)}
+ * resolves an OAuth token to its account identity directly — at the cost of calling an
+ * undocumented endpoint; see its documentation for the trade-offs.
+ * </p>
  */
 public final class ClaudeAuth {
 
 	private static final ObjectMapper MAPPER = new ObjectMapper();
 
 	private static final Duration CLI_TIMEOUT = Duration.ofSeconds(60);
+
+	private static final Duration HTTP_TIMEOUT = Duration.ofSeconds(30);
+
+	private static final String DEFAULT_BASE_URL = "https://api.anthropic.com";
+
+	private static final String PROFILE_PATH = "/api/oauth/profile";
+
+	/** OAuth scope the profile endpoint requires (it accepts {@code user:office} too). */
+	public static final String USER_PROFILE_SCOPE = "user:profile";
+
+	private static final HttpClient HTTP = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 
 	private ClaudeAuth() {
 	}
@@ -156,6 +177,115 @@ public final class ClaudeAuth {
 		return new AuthStatus(root.path("loggedIn").asBoolean(false), text(root, "authMethod"),
 				text(root, "apiProvider"), text(root, "email"), text(root, "orgId"), text(root, "orgName"),
 				text(root, "subscriptionType"), flatten(root));
+	}
+
+	/**
+	 * The account behind an OAuth token, as returned by the {@code /api/oauth/profile}
+	 * endpoint.
+	 *
+	 * @param accountUuid the account's UUID
+	 * @param email the account's email address
+	 * @param fullName the account holder's full name, or null when not reported
+	 * @param displayName the account holder's display name, or null when not reported
+	 * @param organizationUuid the account's organization UUID, or null when not reported
+	 * @param organizationName the organization's display name, or null when not reported
+	 * @param allValues flattened raw JSON of the endpoint's response, all values as
+	 * strings (nested objects as {@code "a.b"} paths — e.g.
+	 * {@code "organization.rate_limit_tier"}); never null
+	 */
+	public record OAuthProfile(String accountUuid, String email, String fullName, String displayName,
+			String organizationUuid, String organizationName, Map<String, String> allValues) {
+	}
+
+	/**
+	 * Resolves an OAuth token to the account it belongs to — the answer to "whose token
+	 * is this" that {@link #status()} cannot give under token auth.
+	 *
+	 * <p>
+	 * <b>Undocumented API.</b> This calls {@code GET /api/oauth/profile} with the token
+	 * as a Bearer credential — the same endpoint the Claude CLI itself uses internally to
+	 * resolve identity during login, but not a published Anthropic API: its shape and
+	 * availability can change without notice. Prefer {@link #status()} wherever the CLI
+	 * is interactively logged in.
+	 * </p>
+	 *
+	 * <p>
+	 * <b>Which tokens work:</b> the endpoint requires the {@code user:profile} (or
+	 * {@code user:office}) OAuth scope. The interactive login's access token carries it
+	 * (readable from this machine via {@code ClaudeCloudSessions.getClaudeOAuthToken()});
+	 * long-lived {@code claude setup-token} tokens do <em>not</em>, and are rejected with
+	 * {@code oauth_scope_insufficient} — this method turns that into a descriptive
+	 * {@link IOException}. Check
+	 * {@code ClaudeCloudSessions.getClaudeOAuthCredentials().scopes()} to know in
+	 * advance.
+	 * </p>
+	 *
+	 * <pre>{@code
+	 * // The machine's interactive login token has the required scope:
+	 * ClaudeAuth.OAuthProfile profile = ClaudeAuth.profile(ClaudeCloudSessions.getClaudeOAuthToken());
+	 * System.out.printf("Token belongs to %s (%s)%n", profile.email(), profile.organizationName());
+	 * }</pre>
+	 * @param oauthToken the token to resolve; must be non-blank
+	 * @return the account the token belongs to
+	 * @throws IOException if the request fails, the token lacks the required scope, is
+	 * expired/invalid, or the response cannot be parsed
+	 * @throws InterruptedException if interrupted while waiting for the response
+	 */
+	public static OAuthProfile profile(String oauthToken) throws IOException, InterruptedException {
+		if (oauthToken == null || oauthToken.isBlank()) {
+			throw new IllegalArgumentException("oauthToken must be non-blank");
+		}
+		String url = baseUrl() + PROFILE_PATH;
+		HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+			.timeout(HTTP_TIMEOUT)
+			.header("Authorization", "Bearer " + oauthToken)
+			.header("Content-Type", "application/json")
+			.GET()
+			.build();
+		HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+		if (response.statusCode() == 200) {
+			return parseProfile(response.body());
+		}
+		throw profileError(url, response.statusCode(), response.body());
+	}
+
+	/**
+	 * Parses the JSON object returned by {@code GET /api/oauth/profile}. Exposed so
+	 * callers can parse captured output (fixtures, logs) without touching the endpoint.
+	 * @param json the raw JSON object
+	 * @return the parsed profile
+	 * @throws IOException if the input is not a JSON object
+	 */
+	public static OAuthProfile parseProfile(String json) throws IOException {
+		JsonNode root = json == null || json.isBlank() ? null : MAPPER.readTree(json);
+		if (root == null || !root.isObject()) {
+			throw new IOException("Expected a JSON object from " + PROFILE_PATH + " but got: " + truncate(json, 300));
+		}
+		JsonNode account = root.path("account");
+		JsonNode organization = root.path("organization");
+		return new OAuthProfile(text(account, "uuid"), text(account, "email_address"), text(account, "full_name"),
+				text(account, "display_name"), text(organization, "uuid"), text(organization, "name"), flatten(root));
+	}
+
+	/**
+	 * Builds the exception for a non-200 profile response, recognizing the scope
+	 * rejection that long-lived {@code claude setup-token} tokens produce.
+	 * Package-visible for tests.
+	 */
+	static IOException profileError(String url, int statusCode, String body) {
+		if (body != null && body.contains("oauth_scope_insufficient")) {
+			return new IOException("GET " + url + " returned " + statusCode + ": the token lacks the "
+					+ USER_PROFILE_SCOPE + " OAuth scope. Long-lived `claude setup-token` tokens don't carry it — "
+					+ "use the interactive login's access token (ClaudeCloudSessions.getClaudeOAuthToken()). "
+					+ "Body: " + truncate(body, 300));
+		}
+		String hint = statusCode == 401 ? " (expired or invalid token?)" : "";
+		return new IOException("GET " + url + " returned " + statusCode + hint + " body: " + truncate(body, 300));
+	}
+
+	private static String baseUrl() {
+		String base = System.getProperty("claude.auth.baseUrl", DEFAULT_BASE_URL);
+		return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
 	}
 
 	// ------------------------------------------------------------------
