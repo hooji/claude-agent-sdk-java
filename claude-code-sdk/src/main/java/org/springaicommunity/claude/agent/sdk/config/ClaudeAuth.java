@@ -249,6 +249,11 @@ public final class ClaudeAuth {
 		throw profileError(url, response.statusCode(), response.body());
 	}
 
+	public static OAuthProfile profile() throws IOException, InterruptedException 
+	{
+		return profile(ClaudeCloudSessions.getClaudeOAuthToken());
+	}
+
 	/**
 	 * Parses the JSON object returned by {@code GET /api/oauth/profile}. Exposed so
 	 * callers can parse captured output (fixtures, logs) without touching the endpoint.
