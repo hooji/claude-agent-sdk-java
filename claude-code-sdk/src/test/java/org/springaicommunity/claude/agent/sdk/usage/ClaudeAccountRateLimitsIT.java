@@ -17,7 +17,6 @@
 package org.springaicommunity.claude.agent.sdk.usage;
 
 import java.time.Duration;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -38,12 +37,11 @@ class ClaudeAccountRateLimitsIT extends ClaudeCliTestBase {
 
 	@Test
 	void fetchesAccountRateLimits() throws Exception {
-		Optional<RateLimitSnapshot> fetched = ClaudeAccountRateLimits.fetch();
+		RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
 
-		Assumptions.assumeTrue(fetched.isPresent(), "Skipping content assertions: no rate_limit_event was emitted "
+		Assumptions.assumeTrue(snapshot != null, "Skipping content assertions: no rate_limit_event was emitted "
 				+ "(API-key billing has no unified limits, or the CLI predates the event)");
 
-		RateLimitSnapshot snapshot = fetched.get();
 		assertThat(snapshot.status()).isIn("allowed", "allowed_warning", "rejected");
 		assertThat(snapshot.age()).isLessThan(Duration.ofMinutes(5));
 		assertThat(snapshot.event().rawValues()).isNotNull().containsKey("rate_limit_info");
@@ -53,9 +51,9 @@ class ClaudeAccountRateLimitsIT extends ClaudeCliTestBase {
 			if (window.utilization() != null) {
 				assertThat(window.utilization()).isBetween(0.0, 1.0);
 			}
-			assertThat(window.resetsAtInstant()).isPresent();
+			assertThat(window.resetsAtInstant()).isNotNull();
 		}
-		assertThat(snapshot.fiveHour()).as("five_hour window on a modern CLI").isPresent();
+		assertThat(snapshot.fiveHour()).as("five_hour window on a modern CLI").isNotNull();
 	}
 
 }

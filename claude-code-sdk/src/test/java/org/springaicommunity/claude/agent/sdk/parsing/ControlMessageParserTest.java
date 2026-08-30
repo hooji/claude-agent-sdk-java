@@ -582,12 +582,12 @@ class ControlMessageParserTest {
 			RateLimitEvent event = result.asRateLimitEvent();
 
 			assertThat(event).isNotNull();
-			assertThat(event.rateLimitInfo().fiveHour()).isPresent();
-			assertThat(event.rateLimitInfo().fiveHour().get().utilization()).isEqualTo(0.37);
-			assertThat(event.rateLimitInfo().fiveHour().get().resetsAt()).isEqualTo(1788054000L);
-			assertThat(event.rateLimitInfo().sevenDay()).isPresent();
-			assertThat(event.rateLimitInfo().sevenDay().get().utilization()).isEqualTo(0.1);
-			assertThat(event.rateLimitInfo().sevenDay().get().resetsAt()).isEqualTo(1788231600L);
+			assertThat(event.rateLimitInfo().fiveHour()).isNotNull();
+			assertThat(event.rateLimitInfo().fiveHour().utilization()).isEqualTo(0.37);
+			assertThat(event.rateLimitInfo().fiveHour().resetsAt()).isEqualTo(1788054000L);
+			assertThat(event.rateLimitInfo().sevenDay()).isNotNull();
+			assertThat(event.rateLimitInfo().sevenDay().utilization()).isEqualTo(0.1);
+			assertThat(event.rateLimitInfo().sevenDay().resetsAt()).isEqualTo(1788231600L);
 			assertThat(event.rateLimitInfo().windows()).containsOnlyKeys("five_hour", "seven_day");
 
 			// The raw payload is preserved for fields this SDK doesn't model yet
@@ -612,8 +612,8 @@ class ControlMessageParserTest {
 
 			assertThat(event.rateLimitInfo().unifiedWindows()).isNull();
 			assertThat(event.rateLimitInfo().windows()).isEmpty();
-			assertThat(event.rateLimitInfo().fiveHour()).isEmpty();
-			assertThat(event.rateLimitInfo().sevenDay()).isEmpty();
+			assertThat(event.rateLimitInfo().fiveHour()).isNull();
+			assertThat(event.rateLimitInfo().sevenDay()).isNull();
 		}
 
 		@Test

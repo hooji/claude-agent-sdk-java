@@ -50,34 +50,34 @@ class RateLimitCaptureTest {
 	void syncClientCapturesLatestRateLimit() {
 		DefaultClaudeSyncClient client = new DefaultClaudeSyncClient(".", null, null, null, null);
 
-		assertThat(client.latestRateLimit()).isEmpty();
+		assertThat(client.latestRateLimit()).isNull();
 
 		client.captureRateLimit(rateLimitEvent(0.37));
-		assertThat(client.latestRateLimit()).isPresent();
-		assertThat(client.latestRateLimit().get().fiveHour().get().utilizationPercent()).isEqualTo(37.0);
-		assertThat(client.latestRateLimit().get().isAllowed()).isTrue();
+		assertThat(client.latestRateLimit()).isNotNull();
+		assertThat(client.latestRateLimit().fiveHour().utilizationPercent()).isEqualTo(37.0);
+		assertThat(client.latestRateLimit().isAllowed()).isTrue();
 
 		// A newer event replaces the old one
 		client.captureRateLimit(rateLimitEvent(0.42));
-		assertThat(client.latestRateLimit().get().fiveHour().get().utilizationPercent()).isEqualTo(42.0);
+		assertThat(client.latestRateLimit().fiveHour().utilizationPercent()).isEqualTo(42.0);
 
 		// Non-rate-limit messages must not clobber the captured value
 		client.captureRateLimit(regularMessage());
-		assertThat(client.latestRateLimit()).isPresent();
+		assertThat(client.latestRateLimit()).isNotNull();
 	}
 
 	@Test
 	void asyncClientCapturesLatestRateLimit() {
 		DefaultClaudeAsyncClient client = new DefaultClaudeAsyncClient(".", null, null, null, null);
 
-		assertThat(client.latestRateLimit()).isEmpty();
+		assertThat(client.latestRateLimit()).isNull();
 
 		client.captureRateLimit(rateLimitEvent(0.37));
-		assertThat(client.latestRateLimit()).isPresent();
-		assertThat(client.latestRateLimit().get().sevenDay().get().utilizationPercent()).isEqualTo(10.0);
+		assertThat(client.latestRateLimit()).isNotNull();
+		assertThat(client.latestRateLimit().sevenDay().utilizationPercent()).isEqualTo(10.0);
 
 		client.captureRateLimit(regularMessage());
-		assertThat(client.latestRateLimit()).isPresent();
+		assertThat(client.latestRateLimit()).isNotNull();
 	}
 
 }

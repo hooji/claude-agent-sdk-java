@@ -2,6 +2,22 @@
 
 Guidance for Claude Code when working in this repository.
 
+## Code standards (public API)
+
+New and fork-added public API must not use these types in signatures:
+
+- **No `Optional`** return values — return the value directly and use null for "not
+  present", with the null case documented in the javadoc.
+- **No `java.nio.file.Path`** parameters or return values — take and return `String`
+  paths at the public boundary (convert with `Path.of(...)` internally), matching the
+  rest of the SDK (`workingDirectory(String)`, the transcript toolkit, etc.).
+- **No `java.util.stream.Stream`** return values — return `List` or `Iterable` instead.
+  (Reactor `Flux`/`Mono` on `ClaudeAsyncClient` are that client's idiom and are fine.)
+
+Some upstream-inherited APIs (e.g. `QueryResult.text()`, `StreamEvent.textDelta()`,
+`Query.stream(...)`) predate this standard and still violate it; do not add new
+violations, and migrate old ones only as an explicitly requested breaking change.
+
 ## Release workflow
 
 This project ships releases by merging to `main`:

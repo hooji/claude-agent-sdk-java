@@ -19,7 +19,6 @@ package org.springaicommunity.claude.agent.sdk.types;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * A {@link RateLimitEvent} paired with the moment it was received. The CLI emits rate
@@ -78,17 +77,17 @@ public record RateLimitSnapshot(RateLimitEvent event, Instant receivedAt) {
 	}
 
 	/**
-	 * The rolling 5-hour window, when reported.
+	 * The rolling 5-hour window, or null when not reported.
 	 */
-	public Optional<RateLimitWindow> fiveHour() {
-		return Optional.ofNullable(windows().get(RateLimitInfo.FIVE_HOUR));
+	public RateLimitWindow fiveHour() {
+		return windows().get(RateLimitInfo.FIVE_HOUR);
 	}
 
 	/**
-	 * The rolling 7-day window, when reported.
+	 * The rolling 7-day window, or null when not reported.
 	 */
-	public Optional<RateLimitWindow> sevenDay() {
-		return Optional.ofNullable(windows().get(RateLimitInfo.SEVEN_DAY));
+	public RateLimitWindow sevenDay() {
+		return windows().get(RateLimitInfo.SEVEN_DAY);
 	}
 
 	/**

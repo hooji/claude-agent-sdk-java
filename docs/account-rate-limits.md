@@ -8,12 +8,15 @@ reset times — through a **supported** mechanism: the Claude CLI's stream-json
 ```java
 import org.springaicommunity.claude.agent.sdk.usage.ClaudeAccountRateLimits;
 
-ClaudeAccountRateLimits.fetch().ifPresent(snapshot -> {
-    snapshot.fiveHour().ifPresent(w -> System.out.printf("5h window: %.0f%% used, resets %s%n",
-            w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
-    snapshot.sevenDay().ifPresent(w -> System.out.printf("7d window: %.0f%% used, resets %s%n",
-            w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
-});
+RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
+if (snapshot != null && snapshot.fiveHour() != null) {
+    System.out.printf("5h window: %.0f%% used, resets %s%n",
+            snapshot.fiveHour().utilizationPercent(), snapshot.fiveHour().resetsAtInstant());
+}
+if (snapshot != null && snapshot.sevenDay() != null) {
+    System.out.printf("7d window: %.0f%% used, resets %s%n",
+            snapshot.sevenDay().utilizationPercent(), snapshot.sevenDay().resetsAtInstant());
+}
 ```
 
 ```
@@ -90,10 +93,10 @@ polling on the order of minutes, wasteful as a per-second ticker.
 
 ```java
 // Defaults: haiku, 2-minute timeout, CLI-managed login
-Optional<RateLimitSnapshot> limits = ClaudeAccountRateLimits.fetch();
+RateLimitSnapshot limits = ClaudeAccountRateLimits.fetch();
 
 // Custom: a specific model, tighter timeout, headless token auth
-Optional<RateLimitSnapshot> custom = ClaudeAccountRateLimits.fetch(
+RateLimitSnapshot custom = ClaudeAccountRateLimits.fetch(
         ClaudeAccountRateLimits.FetchOptions.builder()
             .model("haiku")
             .timeout(Duration.ofSeconds(60))
@@ -101,11 +104,10 @@ Optional<RateLimitSnapshot> custom = ClaudeAccountRateLimits.fetch(
             .build());
 ```
 
-`fetch()` returns `Optional.empty()` when the probe session completes normally but the
-CLI reports no rate limit event — that is what API-key billing looks like. A probe that
-fails outright (CLI missing, unauthenticated, startup failure) throws
-`ClaudeSDKException`, with the CLI's stderr tail in the message when the process died
-early.
+`fetch()` returns null when the probe session completes normally but the CLI reports no
+rate limit event — that is what API-key billing looks like. A probe that fails outright
+(CLI missing, unauthenticated, startup failure) throws `ClaudeSDKException`, with the
+CLI's stderr tail in the message when the process died early.
 
 ### 2. On a connected session: `client.latestRateLimit()`
 
@@ -118,13 +120,15 @@ try (ClaudeSyncClient client = ClaudeClient.sync().build()) {
     client.connect("Refactor this method…");
     client.messages().forEach(System.out::println);
 
-    client.latestRateLimit().ifPresent(snapshot ->
+    RateLimitSnapshot snapshot = client.latestRateLimit();
+    if (snapshot != null && snapshot.fiveHour() != null) {
         System.out.printf("after this turn: 5h window at %.0f%%%n",
-                snapshot.fiveHour().map(RateLimitWindow::utilizationPercent).orElse(0.0)));
+                snapshot.fiveHour().utilizationPercent());
+    }
 }
 ```
 
-`latestRateLimit()` is empty until the session's first inference response arrives. Since
+`latestRateLimit()` is null until the session's first inference response arrives. Since
 the CLI only re-emits on change, the held snapshot can age during a long-idle session —
 `RateLimitSnapshot.age()` tells you by how much.
 
@@ -134,7 +138,7 @@ The async client additionally exposes the raw event stream:
 client.rateLimitEvents()
     .filter(e -> !e.isAllowed())
     .subscribe(e -> alerting.notify("Claude rate limited until "
-            + e.rateLimitInfo().resetsAtInstant().orElse(null)));
+            + e.rateLimitInfo().resetsAtInstant()));
 ```
 
 ## Types
@@ -151,4 +155,4 @@ client.rateLimitEvents()
 * Claude CLI recent enough to emit `rate_limit_event` with `unifiedWindows` and to accept
   `--tools` (2.1.x, early 2026 onward; verified on 2.1.251)
 * claude.ai subscription authentication (Pro/Max) — for API-key billing the event does
-  not exist and `fetch()` returns empty
+  not exist and `fetch()` returns null

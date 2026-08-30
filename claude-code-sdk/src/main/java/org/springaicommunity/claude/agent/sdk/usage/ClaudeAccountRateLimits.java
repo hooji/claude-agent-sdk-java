@@ -23,7 +23,6 @@ import java.time.Duration;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 import org.slf4j.Logger;
@@ -53,12 +52,12 @@ import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
  * </p>
  *
  * <pre>{@code
- * ClaudeAccountRateLimits.fetch().ifPresent(snapshot -> {
- *     snapshot.fiveHour().ifPresent(w -> System.out.printf("5h window: %.0f%% used, resets %s%n",
- *             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
- *     snapshot.sevenDay().ifPresent(w -> System.out.printf("7d window: %.0f%% used, resets %s%n",
- *             w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
- * });
+ * RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
+ * if (snapshot != null && snapshot.fiveHour() != null) {
+ *     RateLimitWindow window = snapshot.fiveHour();
+ *     System.out.printf("5h window: %.0f%% used, resets %s%n", window.utilizationPercent(),
+ *             window.resetsAtInstant());
+ * }
  * }</pre>
  *
  * <p>
@@ -72,7 +71,7 @@ import org.springaicommunity.claude.agent.sdk.types.ResultMessage;
  * Requirements and limits: the CLI must be new enough to emit {@code rate_limit_event}
  * with per-window data and accept {@code --tools} (2.1.x, early 2026 onward), and the
  * account must authenticate through a claude.ai subscription — API-key billing has no
- * unified rate limit windows, so {@link #fetch()} returns empty for it.
+ * unified rate limit windows, so {@link #fetch()} returns null for it.
  * </p>
  */
 public final class ClaudeAccountRateLimits {
@@ -91,26 +90,26 @@ public final class ClaudeAccountRateLimits {
 	/**
 	 * Fetches the account's current rate limit status with default settings (Haiku probe,
 	 * 2-minute timeout, CLI-managed authentication).
-	 * @return the current rate limit snapshot, or empty when the CLI reported none
+	 * @return the current rate limit snapshot, or null when the CLI reported none
 	 * (API-key billing, or a CLI too old to emit {@code rate_limit_event})
 	 * @throws ClaudeSDKException if the probe session itself fails (CLI missing, not
 	 * authenticated, timeout)
 	 */
-	public static Optional<RateLimitSnapshot> fetch() throws ClaudeSDKException {
+	public static RateLimitSnapshot fetch() throws ClaudeSDKException {
 		return fetch(FetchOptions.defaults());
 	}
 
 	/**
 	 * Fetches the account's current rate limit status.
 	 * @param fetchOptions probe configuration
-	 * @return the current rate limit snapshot, or empty when the CLI reported none
+	 * @return the current rate limit snapshot, or null when the CLI reported none
 	 * (API-key billing, or a CLI too old to emit {@code rate_limit_event})
 	 * @throws ClaudeSDKException if the probe session itself fails (CLI missing, not
 	 * authenticated, timeout)
 	 */
-	public static Optional<RateLimitSnapshot> fetch(FetchOptions fetchOptions) throws ClaudeSDKException {
-		Path workDir = fetchOptions.workingDirectory();
-		boolean ownWorkDir = workDir == null;
+	public static RateLimitSnapshot fetch(FetchOptions fetchOptions) throws ClaudeSDKException {
+		boolean ownWorkDir = fetchOptions.workingDirectory() == null;
+		Path workDir;
 		if (ownWorkDir) {
 			try {
 				workDir = Files.createTempDirectory("claude-rate-limit-probe");
@@ -118,6 +117,9 @@ public final class ClaudeAccountRateLimits {
 			catch (IOException e) {
 				throw new ClaudeSDKException("Failed to create temp directory for rate limit probe", e);
 			}
+		}
+		else {
+			workDir = Path.of(fetchOptions.workingDirectory());
 		}
 
 		try {
@@ -168,14 +170,14 @@ public final class ClaudeAccountRateLimits {
 				catch (RuntimeException e) {
 					// A failed turn can still have carried the event (e.g. the API
 					// answered 429 with rate limit headers) — that IS the status
-					if (client.latestRateLimit().isEmpty()) {
+					if (client.latestRateLimit() == null) {
 						throw e;
 					}
 					logger.debug("Probe turn failed after rate_limit_event was received; returning it", e);
 				}
 
-				Optional<RateLimitSnapshot> snapshot = client.latestRateLimit();
-				if (snapshot.isEmpty()) {
+				RateLimitSnapshot snapshot = client.latestRateLimit();
+				if (snapshot == null) {
 					if (!turnCompleted) {
 						// The CLI exited without ever answering — a startup failure,
 						// not an account without rate limits
@@ -211,11 +213,11 @@ public final class ClaudeAccountRateLimits {
 	 * @param oauthToken optional long-lived {@code claude setup-token} OAuth token for
 	 * headless auth, injected as {@code CLAUDE_CODE_OAUTH_TOKEN}; null to use the CLI's
 	 * own login
-	 * @param workingDirectory directory to run the probe in; null to use (and clean up) a
-	 * fresh temp directory, which keeps project context like CLAUDE.md out of the probe's
-	 * token bill
+	 * @param workingDirectory directory path to run the probe in; null to use (and clean
+	 * up) a fresh temp directory, which keeps project context like CLAUDE.md out of the
+	 * probe's token bill
 	 */
-	public record FetchOptions(String model, Duration timeout, String oauthToken, Path workingDirectory) {
+	public record FetchOptions(String model, Duration timeout, String oauthToken, String workingDirectory) {
 
 		/** Model used when none is configured. */
 		public static final String DEFAULT_MODEL = "haiku";
@@ -257,7 +259,7 @@ public final class ClaudeAccountRateLimits {
 
 			private String oauthToken;
 
-			private Path workingDirectory;
+			private String workingDirectory;
 
 			private Builder() {
 			}
@@ -287,9 +289,9 @@ public final class ClaudeAccountRateLimits {
 			}
 
 			/**
-			 * Sets a fixed working directory instead of a throwaway temp directory.
+			 * Sets a fixed working directory path instead of a throwaway temp directory.
 			 */
-			public Builder workingDirectory(Path workingDirectory) {
+			public Builder workingDirectory(String workingDirectory) {
 				this.workingDirectory = workingDirectory;
 				return this;
 			}

@@ -473,8 +473,8 @@ public class DefaultClaudeSyncClient implements ClaudeSyncClient {
 	}
 
 	@Override
-	public Optional<RateLimitSnapshot> latestRateLimit() {
-		return Optional.ofNullable(latestRateLimit.get());
+	public RateLimitSnapshot latestRateLimit() {
+		return latestRateLimit.get();
 	}
 
 	// Package-private for tests. The CLI stamps its session id on every system message
