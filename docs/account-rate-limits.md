@@ -150,6 +150,16 @@ client.rateLimitEvents()
 | `RateLimitInfo` | Mirrors the official `SDKRateLimitInfo`: `status` (`allowed` / `allowed_warning` / `rejected`), representative window fields, overage fields (`overageStatus`, `overageDisabledReason`, `isUsingOverage`, …), and `unifiedWindows` |
 | `RateLimitWindow` | One window: `utilization` (0–1), `utilizationPercent()`, `resetsAt` epoch seconds, `resetsAtInstant()`, `timeUntilReset()` |
 
+## Which account is this?
+
+The numbers belong to whatever account the spawned CLI authenticates as. To identify it,
+use `ClaudeAuth.status()` (the `claude auth status --json` wrapper — local, instant, no
+tokens): on an interactive claude.ai login it reports `email`, `orgId`, `orgName` and
+`subscriptionType`; under injected-token or API-key auth it reports auth state only.
+Because `fetch()` uses the same CLI auth resolution, `ClaudeAuth.status()` identifies the
+probed account — unless the call overrides auth explicitly (`FetchOptions.oauthToken`,
+environment variables), in which case the token's account applies.
+
 ## Requirements
 
 * Claude CLI recent enough to emit `rate_limit_event` with `unifiedWindows` and to accept
