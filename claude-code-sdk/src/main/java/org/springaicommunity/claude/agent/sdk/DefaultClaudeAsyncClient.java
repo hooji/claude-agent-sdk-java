@@ -369,8 +369,8 @@ public class DefaultClaudeAsyncClient implements ClaudeAsyncClient {
 	}
 
 	@Override
-	public Optional<RateLimitSnapshot> latestRateLimit() {
-		return Optional.ofNullable(latestRateLimit.get());
+	public RateLimitSnapshot latestRateLimit() {
+		return latestRateLimit.get();
 	}
 
 	/**

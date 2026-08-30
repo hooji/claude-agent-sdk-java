@@ -18,7 +18,6 @@ package org.springaicommunity.claude.agent.sdk.types;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -45,10 +44,10 @@ public record RateLimitWindow(@JsonProperty("utilization") Double utilization,
 	}
 
 	/**
-	 * The reset time as an {@link Instant}, when reported.
+	 * The reset time as an {@link Instant}, or null when the CLI did not report one.
 	 */
-	public Optional<Instant> resetsAtInstant() {
-		return resetsAt != null && resetsAt > 0 ? Optional.of(Instant.ofEpochSecond(resetsAt)) : Optional.empty();
+	public Instant resetsAtInstant() {
+		return resetsAt != null && resetsAt > 0 ? Instant.ofEpochSecond(resetsAt) : null;
 	}
 
 	/**
@@ -56,10 +55,12 @@ public record RateLimitWindow(@JsonProperty("utilization") Double utilization,
 	 * {@code ZERO} when the CLI did not report a reset time.
 	 */
 	public Duration timeUntilReset() {
-		return resetsAtInstant().map(reset -> {
-			Duration remaining = Duration.between(Instant.now(), reset);
-			return remaining.isNegative() ? Duration.ZERO : remaining;
-		}).orElse(Duration.ZERO);
+		Instant reset = resetsAtInstant();
+		if (reset == null) {
+			return Duration.ZERO;
+		}
+		Duration remaining = Duration.between(Instant.now(), reset);
+		return remaining.isNegative() ? Duration.ZERO : remaining;
 	}
 
 }

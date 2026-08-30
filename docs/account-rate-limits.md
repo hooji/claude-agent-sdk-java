@@ -9,11 +9,13 @@ reset times — through a **supported** mechanism: the Claude CLI's stream-json
 import org.springaicommunity.claude.agent.sdk.usage.ClaudeAccountRateLimits;
 
 RateLimitSnapshot snapshot = ClaudeAccountRateLimits.fetch();
-if (snapshot != null) {
-    snapshot.fiveHour().ifPresent(w -> System.out.printf("5h window: %.0f%% used, resets %s%n",
-            w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
-    snapshot.sevenDay().ifPresent(w -> System.out.printf("7d window: %.0f%% used, resets %s%n",
-            w.utilizationPercent(), w.resetsAtInstant().orElse(null)));
+if (snapshot != null && snapshot.fiveHour() != null) {
+    System.out.printf("5h window: %.0f%% used, resets %s%n",
+            snapshot.fiveHour().utilizationPercent(), snapshot.fiveHour().resetsAtInstant());
+}
+if (snapshot != null && snapshot.sevenDay() != null) {
+    System.out.printf("7d window: %.0f%% used, resets %s%n",
+            snapshot.sevenDay().utilizationPercent(), snapshot.sevenDay().resetsAtInstant());
 }
 ```
 
@@ -118,13 +120,15 @@ try (ClaudeSyncClient client = ClaudeClient.sync().build()) {
     client.connect("Refactor this method…");
     client.messages().forEach(System.out::println);
 
-    client.latestRateLimit().ifPresent(snapshot ->
+    RateLimitSnapshot snapshot = client.latestRateLimit();
+    if (snapshot != null && snapshot.fiveHour() != null) {
         System.out.printf("after this turn: 5h window at %.0f%%%n",
-                snapshot.fiveHour().map(RateLimitWindow::utilizationPercent).orElse(0.0)));
+                snapshot.fiveHour().utilizationPercent());
+    }
 }
 ```
 
-`latestRateLimit()` is empty until the session's first inference response arrives. Since
+`latestRateLimit()` is null until the session's first inference response arrives. Since
 the CLI only re-emits on change, the held snapshot can age during a long-idle session —
 `RateLimitSnapshot.age()` tells you by how much.
 
@@ -134,7 +138,7 @@ The async client additionally exposes the raw event stream:
 client.rateLimitEvents()
     .filter(e -> !e.isAllowed())
     .subscribe(e -> alerting.notify("Claude rate limited until "
-            + e.rateLimitInfo().resetsAtInstant().orElse(null)));
+            + e.rateLimitInfo().resetsAtInstant()));
 ```
 
 ## Types

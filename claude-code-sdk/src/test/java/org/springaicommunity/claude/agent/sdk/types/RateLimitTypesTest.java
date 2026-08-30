@@ -28,7 +28,9 @@ import static org.assertj.core.api.Assertions.within;
 
 /**
  * Tests for the rate limit convenience types: {@link RateLimitWindow},
- * {@link RateLimitInfo} window accessors, and {@link RateLimitSnapshot}.
+ * {@link RateLimitInfo} window accessors, and {@link RateLimitSnapshot}. Accessors for
+ * data the CLI may not report return null rather than Optional, per project code
+ * standards.
  */
 class RateLimitTypesTest {
 
@@ -49,7 +51,7 @@ class RateLimitTypesTest {
 		RateLimitWindow window = new RateLimitWindow(0.37, 1788054000L);
 
 		assertThat(window.utilizationPercent()).isEqualTo(37.0, within(1e-9));
-		assertThat(window.resetsAtInstant()).contains(Instant.ofEpochSecond(1788054000L));
+		assertThat(window.resetsAtInstant()).isEqualTo(Instant.ofEpochSecond(1788054000L));
 	}
 
 	@Test
@@ -57,7 +59,7 @@ class RateLimitTypesTest {
 		RateLimitWindow window = new RateLimitWindow(null, null);
 
 		assertThat(window.utilizationPercent()).isEqualTo(0.0);
-		assertThat(window.resetsAtInstant()).isEmpty();
+		assertThat(window.resetsAtInstant()).isNull();
 		assertThat(window.timeUntilReset()).isEqualTo(Duration.ZERO);
 	}
 
@@ -74,12 +76,12 @@ class RateLimitTypesTest {
 	void infoExposesTypedWindows() {
 		RateLimitInfo info = infoWithWindows();
 
-		assertThat(info.fiveHour()).isPresent();
-		assertThat(info.fiveHour().get().utilizationPercent()).isEqualTo(37.0, within(1e-9));
-		assertThat(info.sevenDay()).isPresent();
-		assertThat(info.sevenDay().get().resetsAtInstant()).contains(Instant.ofEpochSecond(1788231600L));
-		assertThat(info.window("seven_day_sonnet")).isEmpty();
-		assertThat(info.resetsAtInstant()).contains(Instant.ofEpochSecond(1788054000L));
+		assertThat(info.fiveHour()).isNotNull();
+		assertThat(info.fiveHour().utilizationPercent()).isEqualTo(37.0, within(1e-9));
+		assertThat(info.sevenDay()).isNotNull();
+		assertThat(info.sevenDay().resetsAtInstant()).isEqualTo(Instant.ofEpochSecond(1788231600L));
+		assertThat(info.window("seven_day_sonnet")).isNull();
+		assertThat(info.resetsAtInstant()).isEqualTo(Instant.ofEpochSecond(1788054000L));
 	}
 
 	@Test
@@ -87,9 +89,9 @@ class RateLimitTypesTest {
 		RateLimitInfo info = infoWithoutWindows();
 
 		assertThat(info.windows()).isEmpty();
-		assertThat(info.fiveHour()).isEmpty();
-		assertThat(info.sevenDay()).isEmpty();
-		assertThat(info.resetsAtInstant()).isEmpty();
+		assertThat(info.fiveHour()).isNull();
+		assertThat(info.sevenDay()).isNull();
+		assertThat(info.resetsAtInstant()).isNull();
 	}
 
 	@Test
@@ -101,8 +103,8 @@ class RateLimitTypesTest {
 		assertThat(snapshot.info()).isSameAs(event.rateLimitInfo());
 		assertThat(snapshot.status()).isEqualTo("allowed");
 		assertThat(snapshot.isAllowed()).isTrue();
-		assertThat(snapshot.fiveHour()).isPresent();
-		assertThat(snapshot.sevenDay()).isPresent();
+		assertThat(snapshot.fiveHour()).isNotNull();
+		assertThat(snapshot.sevenDay()).isNotNull();
 		assertThat(snapshot.age()).isGreaterThanOrEqualTo(Duration.ofSeconds(120));
 
 		RateLimitSnapshot fresh = RateLimitSnapshot.of(event);
@@ -117,7 +119,7 @@ class RateLimitTypesTest {
 		assertThat(snapshot.status()).isNull();
 		assertThat(snapshot.isAllowed()).isFalse();
 		assertThat(snapshot.windows()).isEmpty();
-		assertThat(snapshot.fiveHour()).isEmpty();
+		assertThat(snapshot.fiveHour()).isNull();
 	}
 
 	@Test

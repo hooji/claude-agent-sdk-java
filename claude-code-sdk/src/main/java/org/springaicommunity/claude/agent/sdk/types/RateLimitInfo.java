@@ -18,7 +18,6 @@ package org.springaicommunity.claude.agent.sdk.types;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -111,31 +110,32 @@ public record RateLimitInfo(@JsonProperty("status") String status,
 	}
 
 	/**
-	 * The window of the given kind (e.g. {@link #FIVE_HOUR}), when reported.
+	 * The window of the given kind (e.g. {@link #FIVE_HOUR}), or null when not reported.
 	 */
-	public Optional<RateLimitWindow> window(String kind) {
-		return Optional.ofNullable(windows().get(kind));
+	public RateLimitWindow window(String kind) {
+		return windows().get(kind);
 	}
 
 	/**
-	 * The rolling 5-hour window, when reported.
+	 * The rolling 5-hour window, or null when not reported.
 	 */
-	public Optional<RateLimitWindow> fiveHour() {
+	public RateLimitWindow fiveHour() {
 		return window(FIVE_HOUR);
 	}
 
 	/**
-	 * The rolling 7-day window, when reported.
+	 * The rolling 7-day window, or null when not reported.
 	 */
-	public Optional<RateLimitWindow> sevenDay() {
+	public RateLimitWindow sevenDay() {
 		return window(SEVEN_DAY);
 	}
 
 	/**
-	 * The representative window's reset time as an {@link Instant}, when reported.
+	 * The representative window's reset time as an {@link Instant}, or null when not
+	 * reported.
 	 */
-	public Optional<Instant> resetsAtInstant() {
-		return resetsAt > 0 ? Optional.of(Instant.ofEpochSecond(resetsAt)) : Optional.empty();
+	public Instant resetsAtInstant() {
+		return resetsAt > 0 ? Instant.ofEpochSecond(resetsAt) : null;
 	}
 
 }

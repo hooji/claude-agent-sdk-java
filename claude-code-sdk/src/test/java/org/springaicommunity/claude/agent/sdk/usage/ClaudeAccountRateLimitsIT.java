@@ -51,9 +51,9 @@ class ClaudeAccountRateLimitsIT extends ClaudeCliTestBase {
 			if (window.utilization() != null) {
 				assertThat(window.utilization()).isBetween(0.0, 1.0);
 			}
-			assertThat(window.resetsAtInstant()).isPresent();
+			assertThat(window.resetsAtInstant()).isNotNull();
 		}
-		assertThat(snapshot.fiveHour()).as("five_hour window on a modern CLI").isPresent();
+		assertThat(snapshot.fiveHour()).as("five_hour window on a modern CLI").isNotNull();
 	}
 
 }

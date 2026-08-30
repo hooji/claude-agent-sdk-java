@@ -310,10 +310,10 @@ public interface ClaudeAsyncClient extends TranscriptAware {
 	 * The CLI reports it on the first API response of the session and again whenever the
 	 * values change, so the snapshot refreshes as the conversation progresses; check
 	 * {@link RateLimitSnapshot#age()} when staleness matters.
-	 * @return the latest snapshot, or empty before the first inference response (and
-	 * always empty for API-key billing, which has no unified limits)
+	 * @return the latest snapshot, or null before the first inference response (and
+	 * always null for API-key billing, which has no unified limits)
 	 */
-	Optional<RateLimitSnapshot> latestRateLimit();
+	RateLimitSnapshot latestRateLimit();
 
 	/**
 	 * Receives response messages, returning only regular messages (not control messages).
